@@ -1,0 +1,9 @@
+env
+tmp
+*.swp
+handwritten
+archive
+IAM
+
+dhg
+handwriting_generation
