@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,4 +12,10 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
+from data import get_dataset 
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+
+train_loader = get_dataset()
+
+"""Hyperparameters"""

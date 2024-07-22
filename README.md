@@ -3,6 +3,9 @@
 2. take basic model, train it on general handwriting
 3. lora 
 
+* GAN is the best method based on the training data and the data to be LoRA'd
+* Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
+
 ## data
 probably not enough so i'll use general handwriting to learn the words first. might be better to make it all caps
 
