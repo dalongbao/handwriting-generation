@@ -23,7 +23,6 @@ class CombinedDataset(Dataset):
         with open(label_path, 'r') as f:
             for line in f:
                 parts = line.strip().split(maxsplit=1)
-
                 if len(parts) == 2:
                     filename, label = parts
                     self.data.append((filename, label))
@@ -38,7 +37,9 @@ class CombinedDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
-        
+
+        image = image.view(-1) 
+        image = 1 - image
         return image, label
 
 def get_dataset():
@@ -46,7 +47,7 @@ def get_dataset():
     LABEL_PATH = os.path.join(os.getcwd(), 'IAM/gt_test.txt')
 
     transform = transforms.Compose([
-        transforms.Resize((90, 1200)),  # Resize images to a fixed size
+        transforms.Resize((30, 400)),  # Resize images to a fixed size
         transforms.ToTensor(),
     ])
 

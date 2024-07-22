@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 
 class Discriminator(nn.Module):
     def __init__(self, in_features):
+        super(Discriminator, self).__init__()
         self.fc1 = nn.Linear(in_features=in_features, out_features=128, bias=True)
         self.fc2 = nn.Linear(in_features=128, out_features=64, bias=True)
         self.fc3 = nn.Linear(in_features=64, out_features=32, bias=True)
@@ -22,7 +23,7 @@ class Discriminator(nn.Module):
         self.leakyrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.dropout = nn.Dropout(p=0.5, inplace=False)
 
-    def __call__(self, x):
+    def forward(self, x):
         x = self.fc1(x)
         x = self.leakyrelu(x)
 
@@ -39,8 +40,9 @@ class Discriminator(nn.Module):
         return x
 
 class Generator(nn.Module):
-    def __init__(self, out_features):
-        self.fc1 = nn.Linear(in_features=100, out_features=32, bias=True)
+    def __init__(self, in_features, out_features):
+        super(Generator, self).__init__()
+        self.fc1 = nn.Linear(in_features=in_features, out_features=32, bias=True)
         self.fc2 = nn.Linear(in_features=32, out_features=64, bias=True)
         self.fc3 = nn.Linear(in_features=64, out_features=128, bias=True)
         self.fc4 = nn.Linear(in_features=128, out_features=out_features, bias=True)
@@ -49,7 +51,7 @@ class Generator(nn.Module):
         self.tanh = nn.Tanh()
         self.dropout = nn.Dropout(p=0.5, inplace=False)
 
-    def __call__(self, x):
+    def forward(self, x):
         x = self.fc1(x)
         x = self.leakyrelu(x)
 
