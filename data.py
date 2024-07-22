@@ -31,10 +31,10 @@ class CombinedDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __get_item__(self, idx):
+    def __getitem__(self, idx):
         filename, label = self.data[idx]
-        img_path = os.path.join(self.img_dir, filename)
-        image = Image.open(img_path).convert('RGB')
+        img_path = os.path.join(self.img_path, filename)
+        image = Image.open(img_path).convert('1')
 
         if self.transform:
             image = self.transform(image)
@@ -46,9 +46,8 @@ def get_dataset():
     LABEL_PATH = os.path.join(os.getcwd(), 'IAM/gt_test.txt')
 
     transform = transforms.Compose([
-        transforms.Resize((64, 64)),  # Resize images to a fixed size
+        transforms.Resize((90, 1200)),  # Resize images to a fixed size
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
     dataset = CombinedDataset(
@@ -60,7 +59,7 @@ def get_dataset():
     return DataLoader(
             dataset=dataset,
             batch_size=32,
-            num_workers=1,
+            num_workers=0,
             shuffle=True
     )
 
