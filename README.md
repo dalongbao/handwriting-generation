@@ -6,6 +6,11 @@
 * GAN is the best method based on the training data and the data to be LoRA'd
 * Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
 
+i'm stupid i forgot the text embeddings entirely
+
+so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
+[mnb](src/mobilenetbased.png)
+
 ## data
 probably not enough so i'll use general handwriting to learn the words first. might be better to make it all caps
 
