@@ -4,12 +4,14 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from torchvision.models import mobilenet_v2
+from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+from torch.optim.lr_scheduler import _LRScheduler
 
 import os
 import sys
 import pickle
 import time
+import math
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,7 +36,7 @@ def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     bce: boolean to decide to use binary cross-entropy
     """
     score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=1))
-    pl_loss = torch./mean(bce(pl_pred, pl) * abar.squeeze(-1))
+    pl_loss = torch.mean(bce(pl_pred, pl) * abar.squeeze(-1))
     return score_loss + pl_loss
 
 class AverageMeter:
@@ -52,6 +54,19 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+class InvSqrtSchedule(_LRScheduler):
+    def __init__(self, optimizer, d_model, warmup_steps=4000, last_epoch=-1):
+        self.d_model = d_model
+        self.warmup_steps = warmup_steps
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        step = self.last_epoch + 1
+        arg1 = 1 / torch.sqrt(torch.tensor(step, dtype=torch.float32))
+        arg2 = step * (self.warmup_steps ** -1.5)
+        lr_factor = 1 / torch.sqrt(torch.tensor(self.d_model, dtype=torch.float32)) * torch.min(arg1, arg2)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, pos_factor = 1):
@@ -75,17 +90,18 @@ class PositionalEncoding(nn.Module):
 
 class MLP(nn.Module):
     def __init__(self, input_dims: int, hidden_dims:int = 768, act_before: bool =True):
+        super(MLP, self).__init__()
         self.layers = []
         if act_before:
-            layers.append(nn.SiLU())
+            self.layers.append(nn.SiLU())
 
-        layers.extend([
+        self.layers.extend([
             nn.Linear(input_dims, hidden_dims), 
             nn.SiLU(), 
             nn.Linear(hidden_dims, input_dims)
             ])
 
-        self.ff = nn.Sequential(*layers)
+        self.ff = nn.Sequential(*self.layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.ff(x)
@@ -119,9 +135,9 @@ class ConvSubLayer(nn.Module):
         self.affine2 = AffineTransformLayer(filters)
         self.affine3 = AffineTransformLayer(filters)
         
-        self.conv_skip = nn.Conv1D(filters, filters, 3, padding=1)
-        self.conv1 = Conv1D(filters // 2, 3, dilation=dils[1])
-        self.conv2 = Conv1D(filters, 3, dilation=dils[1])
+        self.conv_skip = nn.Conv1d(filters, filters, 3, padding=1)
+        self.conv1 = nn.Conv1d(filters // 2, filters // 2, 3, dilation=dils[1])
+        self.conv2 = nn.Conv1d(filters, filters, 3, dilation=dils[1])
 
         self.fc = nn.Linear(filters, filters)
         self.dropout = nn.Dropout(drop_rate)
@@ -143,7 +159,7 @@ class ConvSubLayer(nn.Module):
 class StyleExtractor(nn.Module):
     def __init__(self):
         super().__init__()
-        self.mobilenet = mobilenet_v2(pretrained=True)
+        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
         self.features = nn.Sequential(*list(self.mobilenet.features))
 
         self.local_pool = nn.AvgPool2d((3, 3))
@@ -168,11 +184,11 @@ class DecoderLayer(nn.Module):
         self.text_pe = PositionalEncoding(d_model=d_model, max_len=2000)
         self.stroke_pe = PositionalEncoding(d_model=d_model, max_len=2000)
         self.dropout = nn.Dropout(drop_rate)
-        self.layernorm = nn.LayerNorm(eps=1e-6, elementwise_affine=False)
+        self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
         self.text_dense = nn.Linear(d_model, d_model)
 
-        self.mha1 = nn.MultiHeadedAttention(d_model, num_heads)
-        self.mha2 = nn.MultiHeadedAttention(d_model, num_heads)
+        self.mha1 = nn.MultiheadAttention(d_model, num_heads)
+        self.mha2 = nn.MultiheadAttention(d_model, num_heads)
         self.ff = MLP(d_model, d_model*2)
         self.affine0 = AffineTransformLayer(d_model)
         self.affine1 = AffineTransformLayer(d_model)
@@ -207,8 +223,8 @@ class Text_Style_Encoder(nn.Module):
         self.emb = nn.Embedding(73, d_model)
         self.text_conv = nn.Conv1d(in_channels=d_model, out_channels=d_model, kernel_size=3, padding=get_same_padding(3))
         self.style_mlp = MLP(d_model, input_dims)
-        self.mha = MultiHeadedAttention(d_model, 8)
-        self.layernorm = nn.LayerNorm(eps=1e-6, elementwise_affine=False)
+        self.mha = nn.MultiheadAttention(d_model, 8)
+        self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
         self.dropout = nn.Dropout(p=0.3)
 
         self.affine1 = AffineTransformLayer(d_model)
@@ -230,7 +246,7 @@ class Text_Style_Encoder(nn.Module):
 
 class DiffusionWriter(nn.Module):
     def __init__(self, num_layers: int = 4, c1: int = 128, c2: int = 192, c3: int = 256, drop_rate: float = 0.1, num_heads:int = 8):
-        super().__init__()
+        super(DiffusionWriter, self).__init__()
         self.input_fc = nn.Linear(c1, c1)
         self.sigma_mlp = MLP(c1 // 4, 2048)
         self.enc1 = ConvSubLayer(c1, [1,2])
@@ -239,7 +255,7 @@ class DiffusionWriter(nn.Module):
         self.enc4 = ConvSubLayer(c3, [1, 2])
         self.enc5 = DecoderLayer(c3, 4, drop_rate, pos_factor=2)
         self.pool = nn.AvgPool1d(2)
-        self.upsample = UpSample(2)
+        self.upsample = nn.Upsample(2)
 
         self.skip_conv1 = nn.Conv1d(c2, c2, kernel_size=3, padding=get_same_padding(3))
         self.skip_conv2 = nn.Conv1d(c3, c3, kernel_size=3, padding=get_same_padding(3))

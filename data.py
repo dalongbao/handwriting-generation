@@ -63,6 +63,3 @@ def get_dataset():
             num_workers=0,
             shuffle=True
     )
-
-
-

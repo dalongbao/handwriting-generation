@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+import tiktoken
 
 import os
 import sys
@@ -50,7 +51,7 @@ def train(dataset, iterations, optimizer, alpha_set, print_every=1000, save_ever
     how is the dataset loaded? what was the original dataset? help
 
     """
-    dataloader = get_datset()
+#     dataloader = get_datset()
     device = next(model.parameters()).device
 
     for count in range(iterations):
@@ -86,3 +87,52 @@ def train(dataset, iterations, optimizer, alpha_set, print_every=1000, save_ever
 
         # Save final model
         torch.save(model.state_dict(), './weights/model.pt')
+
+def main():
+    parser = argparse.ArgumentParser()    
+    parser.add_argument('--steps', help='number of trainsteps, default 60k', default=60000, type=int)
+    parser.add_argument('--batchsize', help='default 96', default=96, type=int)
+    parser.add_argument('--seqlen', help='sequence length during training, default 480', default=480, type=int)
+    parser.add_argument('--textlen', help='text length during training, default 50', default=50, type=int)
+    parser.add_argument('--width', help='offline image width, default 1400', default=1400, type=int)
+    parser.add_argument('--warmup', help='number of warmup steps, default 10k', default=10000, type=int)
+    parser.add_argument('--dropout', help='dropout rate, default 0', default=0.0, type=float)
+    parser.add_argument('--num_attlayers', help='number of attentional layers at lowest resolution', default=2, type=int)
+    parser.add_argument('--channels', help='number of channels in first layer, default 128', default=128, type=int)
+    parser.add_argument('--print_every', help='show train loss every n iters', default=1000, type=int)
+    parser.add_argument('--save_every', help='save ckpt every n iters', default=10000, type=int)
+
+    args = parser.parse_args()
+    NUM_STEPS = args.steps
+    BATCH_SIZE = args.batchsize
+    MAX_SEQ_LEN = args.seqlen
+    MAX_TEXT_LEN = args.textlen
+    WIDTH = args.width
+    DROP_RATE = args.dropout
+    NUM_ATTLAYERS = args.num_attlayers
+    WARMUP_STEPS = args.warmup
+    PRINT_EVERY = args.print_every
+    SAVE_EVERY = args.save_every
+    C1 = args.channels
+    C2 = C1 * 3//2
+    C3 = C1 * 2
+    MAX_SEQ_LEN = MAX_SEQ_LEN - (MAX_SEQ_LEN%8) + 8
+
+    BUFFER_SIZE = 3000
+    L = 60
+    tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
+    beta_set = utils.get_beta_set()
+    alpha_set = torch.cumprod(1 - beta_set, dim=0)
+
+    style_extractor = miku.StyleExtractor()
+    model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
+    
+    path = './data/trainset.txt'
+    strokes, texts, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, WIDTH, 96)
+    dataset = utils.create_dataset(strokes, texts, samples, style_extractor, BATCH_SIZE, BUFFER_SIZE)
+
+    train(dataset, NUM_STEPS, model, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
+
+if __name__ == '__main__':
+    main()
