@@ -60,7 +60,7 @@ def train(dataset, iterations, optimizer, alpha_set, print_every=1000, save_ever
             dataloader = iter(DataLoader(dataset, batch_size=32, shuffle=True))
             strokes, text, style_vectors = next(dataloader)
 
-                strokes = strokes.to(device)
+            strokes = strokes.to(device)
             text = text.to(device)
             style_vectors = style_vectors.to(device)
 
