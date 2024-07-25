@@ -37,6 +37,22 @@ def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     pl_loss = torch./mean(bce(pl_pred, pl) * abar.squeeze(-1))
     return score_loss + pl_loss
 
+class AverageMeter:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, pos_factor = 1):
         super().__init__()
