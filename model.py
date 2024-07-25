@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.models import mobilenet_v2
@@ -23,6 +24,18 @@ def reshape_up(x, factor=2):
     x_shape = x.shape
     return x.reshape(x_shape[0], x_shape[1] * factor, x_shape[2] // factor)
 
+def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
+    """
+    eps: epsilon
+    score_pred: score prediction
+    pl: pen lift (list of coordinates)
+    pl_pred: pen lift prediction
+    abar: weighting factor for pen lift loss
+    bce: boolean to decide to use binary cross-entropy
+    """
+    score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=1))
+    pl_loss = torch./mean(bce(pl_pred, pl) * abar.squeeze(-1))
+    return score_loss + pl_loss
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, pos_factor = 1):

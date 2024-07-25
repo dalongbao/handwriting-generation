@@ -11,6 +11,9 @@ i'm stupid i forgot the text embeddings entirely
 so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
 [mnb](src/mobilenetbased.png)
 
+# i'm gonna have to poke around with the model and data to get them to play nice. 
+right now i'm just rewriting the model in pytorch but the data is not in the same form as theirs, maybe 
+
 ## data
 probably not enough so i'll use general handwriting to learn the words first. might be better to make it all caps
 
