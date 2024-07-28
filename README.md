@@ -15,7 +15,9 @@ so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
 # i'm gonna have to poke around with the model and data to get them to play nice. 
 right now i'm just rewriting the model in pytorch but the data is not in the same form as theirs, maybe 
 
-basically i have to edit the data to fix the dataloader and preprocess  the data a bit more to get the style vectors
+basically i have to edit the data to fix the dataloader and preprocess the data a bit more to get the style vectors
+
+ok so the tensors are differently shaped which makes torch.stack unhappy (e.g [231, 1] and [422, 1]). usually collate_fn is used to fix this (via padding or whatever). no. strokes should be like that though? think about this.
 
 ## data
 probably not enough so i'll use general handwriting to learn the words first. might be better to make it all caps
