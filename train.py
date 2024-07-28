@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils 
-from preprocessing import load_datasets, IAMDataset
+from preprocessing import load_datasets, IAMDataset, collate_fn
 import model as miku # the naming scheme clashes with the torch naming scheme
 
 def train_step(x, pen_lifts, text, style_vectors, glob_args):

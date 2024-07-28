@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -31,6 +32,20 @@ class IAMDataset(Dataset):
         image = torch.FloatTensor(image).permute(2, 0, 1)  # Change from (H, W, C) to (C, H, W)
         
         return strokes, text, image
+
+def collate_fn(batch):
+    strokes, texts, style_vectors = zip(*batch)
+    
+    # Convert strokes to tensors if they're not already
+    strokes = [torch.tensor(s, dtype=torch.float32) for s in strokes]
+    
+    # Leave texts as a list
+    texts = list(texts)
+    
+    # Stack style_vectors if they're consistent in size
+    style_vectors = torch.stack(style_vectors)
+    
+    return strokes, texts, style_vectors
 
 def remove_whitespace(img, thresh, remove_middle=False):
     row_mins = np.amin(img, axis=1)
