@@ -14,9 +14,9 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
+import utils 
+from preprocessing import load_datasets
 import model as miku # the naming scheme clashes with the torch naming scheme
-import utils
-from data import get_dataset
 
 def train_step(x, pen_lifts, text, style_vectors, glob_args):
     model, alpha_set, bce, train_loss, optimizer = glob_args
@@ -42,17 +42,13 @@ def train_step(x, pen_lifts, text, style_vectors, glob_args):
     train_loss(loss.item())
     return score, att
 
-def train(dataset, iterations, optimizer, alpha_set, print_every=1000, save_every=10000):
+def train(train_loader, model, iterations, optimizer, alpha_set, print_every=1000, save_every=10000):
     s = time.time() # maybe use perf counter?
     bce = nn.BCELoss(reduction='none')
     train_loss = miku.AverageMeter()
-    """
-
-    how is the dataset loaded? what was the original dataset? help
-
-    """
-#     dataloader = get_datset()
     device = next(model.parameters()).device
+
+    dataloader = iter(train_loader)
 
     for count in range(iterations):
         try:
@@ -130,9 +126,14 @@ def main():
     
     path = './data/trainset.txt'
     strokes, texts, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, WIDTH, 96)
-    dataset = utils.create_dataset(strokes, texts, samples, style_extractor, BATCH_SIZE, BUFFER_SIZE)
 
-    train(dataset, NUM_STEPS, model, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
+    # Load the preprocessed datasets
+    train_dataset, test_dataset = load_datasets()
+
+    # Create a DataLoader for the training dataset
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
 
 if __name__ == '__main__':
     main()

@@ -43,8 +43,8 @@ class CombinedDataset(Dataset):
         return image, label
 
 def get_dataset():
-    IMG_PATH = os.path.join(os.getcwd(), 'IAM/image')
-    LABEL_PATH = os.path.join(os.getcwd(), 'IAM/gt_test.txt')
+    IMG_PATH = os.path.join(os.getcwd(), 'data/data_labelled/IAM/image')
+    LABEL_PATH = os.path.join(os.getcwd(), 'data/data_labelled/IAM/gt_test.txt')
 
     transform = transforms.Compose([
         transforms.Resize((30, 400)),  # Resize images to a fixed size

@@ -10,9 +10,12 @@ i'm stupid i forgot the text embeddings entirely
 
 so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
 [mnb](src/mobilenetbased.png)
+[dataset](https://fki.tic.heia-fr.ch/databases/download-the-iam-on-line-handwriting-database)
 
 # i'm gonna have to poke around with the model and data to get them to play nice. 
 right now i'm just rewriting the model in pytorch but the data is not in the same form as theirs, maybe 
+
+basically i have to edit the data to fix the dataloader and preprocess  the data a bit more to get the style vectors
 
 ## data
 probably not enough so i'll use general handwriting to learn the words first. might be better to make it all caps
@@ -21,7 +24,9 @@ take the art, mask it if it's not bw, make it all bw (text detection and etc?)
 
 is there a non-ml method
 
-gan is best option - text embedding + vqvae? -> picture, 
+data/lineStrokes-all.tar.gz - the stroke xml for the online dataset 
+data/lineImages-all.tar.gz - the images for the offline dataset 
+ascii-all.tar.gz - the text labels for the dataset extract these contents and put them in the ./data directory
 
 ## graves paper notes
 input is a real-valued pair (x1, x2) that defines the pen offset from the previous input
