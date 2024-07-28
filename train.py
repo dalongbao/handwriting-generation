@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils 
-from preprocessing import load_datasets
+from preprocessing import load_datasets, IAMDataset
 import model as miku # the naming scheme clashes with the torch naming scheme
 
 def train_step(x, pen_lifts, text, style_vectors, glob_args):
@@ -124,9 +124,6 @@ def main():
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
     
-    path = './data/trainset.txt'
-    strokes, texts, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, WIDTH, 96)
-
     # Load the preprocessed datasets
     train_dataset, test_dataset = load_datasets()
 

@@ -10,6 +10,11 @@ import pickle
 import argparse
 import string
 import tiktoken
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class IAMDataset(Dataset):
     def __init__(self, data):
@@ -67,17 +72,21 @@ def parse_page_text(dir_path, id):
                 if line_num > 0:
                     dict[f"{id[:-4]}-{line_num:02d}"] = l.strip()
                 line_num += 1
+    logger.info(f"Parsed page text for {id}, found {len(dict)} lines")
     return dict
 
 def create_dict(path):
     dict = {}
     for dir in os.listdir(path):
-        dirpath = os.path.join(path, dir)
+        if dir != '.DS_Store':
+            dirpath = os.path.join(path, dir)
         for subdir in os.listdir(dirpath):
-            subdirpath = os.path.join(dirpath, subdir)
+            if subdir != '.DS_Store':
+                subdirpath = os.path.join(dirpath, subdir)
             forms = os.listdir(subdirpath)
             for f in forms:
                 dict.update(parse_page_text(subdirpath, f))
+    logger.info(f"Created dictionary with {len(dict)} entries")
     return dict
 
 def parse_stroke_xml(path):
@@ -102,6 +111,7 @@ def parse_stroke_xml(path):
     strokes[:, :2] /= np.std(strokes[:, :2])
     for i in range(3):
         strokes = combine_strokes(strokes, int(len(strokes)*0.2))
+    logger.info(f"Parsed stroke XML for {path}, found {len(strokes)} strokes")
     return strokes
 
 def read_img(path, height):
@@ -126,17 +136,24 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
         path = os.path.join(strokes_path, f[1:4], f[1:8])
         offline_path = os.path.join(images_path, f[1:4], f[1:8])
 
-        samples = [s+'.xml' for s in os.listdir(path) if f[1:-1] in s]
+        samples = [s for s in os.listdir(path) if f[1:-1] in s]
         offline_samples = [s for s in os.listdir(offline_path) if f[1:-1] in s]
         shuffled_offline_samples = offline_samples.copy()
         random.shuffle(shuffled_offline_samples)
         
         for i in range(len(samples)):
+            sample_id = samples[i][:-4]
+            if sample_id not in text_dict:
+                logger.warning(f"Sample {sample_id} not found in text dictionary")
+                continue
+            
             dataset.append((
                 parse_stroke_xml(os.path.join(path, samples[i])),
-                tokenizer.encode(text_dict[samples[i][:-4]]),
+                tokenizer.encode(text_dict[sample_id]),
                 read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
-            ))        
+            ))
+        
+    logger.info(f"Created dataset with {len(dataset)} samples")
     return dataset
 
 def main():
@@ -179,19 +196,11 @@ def main():
     train_dataset = IAMDataset(train_strokes)
     test_dataset = IAMDataset(test_strokes)
 
-    # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
-
-    # Example of how to use the dataloader
-    for batch in train_loader:
-        strokes, text, images = batch
-        # Your training code here
-        break  # Remove this line when you're ready to process all batches
-
     # Save the datasets if needed
     torch.save(train_dataset, './data/train_dataset.pth')
     torch.save(test_dataset, './data/test_dataset.pth')
+    
+    logger.info("Datasets created and saved successfully")
 
 def load_datasets():
     train_dataset = torch.load('./data/train_dataset.pth')
