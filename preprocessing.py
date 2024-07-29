@@ -17,6 +17,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# max xml length = 994
+
 class IAMDataset(Dataset):
     def __init__(self, data):
         self.data = data
@@ -32,20 +34,6 @@ class IAMDataset(Dataset):
         image = torch.FloatTensor(image).permute(2, 0, 1)  # Change from (H, W, C) to (C, H, W)
         
         return strokes, text, image
-
-def collate_fn(batch):
-    strokes, texts, style_vectors = zip(*batch)
-    
-    # Convert strokes to tensors if they're not already
-    strokes = [torch.tensor(s, dtype=torch.float32) for s in strokes]
-    
-    # Leave texts as a list
-    texts = list(texts)
-    
-    # Stack style_vectors if they're consistent in size
-    style_vectors = torch.stack(style_vectors)
-    
-    return strokes, texts, style_vectors
 
 def remove_whitespace(img, thresh, remove_middle=False):
     row_mins = np.amin(img, axis=1)
@@ -104,7 +92,7 @@ def create_dict(path):
     logger.info(f"Created dictionary with {len(dict)} entries")
     return dict
 
-def parse_stroke_xml(path):
+def parse_stroke_xml(path): # pad the xmls to 1000 strokes so everything is consistent
     with open(path) as xml:
         xml = xml.readlines()
     strokes = []
@@ -126,23 +114,43 @@ def parse_stroke_xml(path):
     strokes[:, :2] /= np.std(strokes[:, :2])
     for i in range(3):
         strokes = combine_strokes(strokes, int(len(strokes)*0.2))
+    
+    # Padding so all the inputs on the stroke dimension are of the same size, might have to tweak later (test np.ones) for perf
+    if len(strokes) < 994:
+        padding = np.zeros((994 - len(strokes), 3))
+        padding[:, 2] = 1.0
+        strokes = np.concatenate((strokes, padding))
     logger.info(f"Parsed stroke XML for {path}, found {len(strokes)} strokes")
-    return strokes
 
-def read_img(path, height):
+    return strokes
+def read_img(path, height, fixed_width=1400):
     img = Image.open(path).convert('L')
     img_arr = np.array(img)
     img_arr = remove_whitespace(img_arr, thresh=127)
+    
+    # Resize to the fixed height while maintaining aspect ratio
     h, w = img_arr.shape
     new_w = int(height * w / h)
+    
     transform = transforms.Compose([
         transforms.Resize((height, new_w)),
         transforms.ToTensor(),
     ])
     img_tensor = transform(Image.fromarray(img_arr))
+    
+    # Pad or crop to the fixed width
+    c, h, w = img_tensor.shape
+    if w < fixed_width:
+        # Pad
+        padding = torch.zeros(c, h, fixed_width - w)
+        img_tensor = torch.cat([img_tensor, padding], dim=2)
+    elif w > fixed_width:
+        # Crop
+        img_tensor = img_tensor[:, :, :fixed_width]
+    
     return (img_tensor * 255).byte().numpy()
 
-def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, height):
+def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, height): # max sentence length is 24
     dataset = []
     with open(formlist) as f:
         forms = f.readlines()
@@ -162,12 +170,22 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
                 logger.warning(f"Sample {sample_id} not found in text dictionary")
                 continue
             
+            """data to be added (this is here for debugging)"""
+            stroke_vec = parse_stroke_xml(os.path.join(path, samples[i])),
+
+            tokenized_string = tokenizer.encode(text_dict[sample_id])
+            if len(tokenized_string) < 24:
+                padding = np.zeros(24 - len(tokenized_string))
+                tokenized_string = np.concatenate((tokenized_string, padding))
+
+            img_vec = read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
+            
             dataset.append((
-                parse_stroke_xml(os.path.join(path, samples[i])),
-                tokenizer.encode(text_dict[sample_id]),
-                read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
+                stroke_vec,
+                tokenized_string,
+                img_vec
             ))
-        
+
     logger.info(f"Created dataset with {len(dataset)} samples")
     return dataset
 

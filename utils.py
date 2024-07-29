@@ -14,12 +14,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def get_alphas(batch_size, alpha_set):
-    alpha_indices = torch.rand([batch_size, 1], dtype=torch.int32)
-    lower_alphas = torch.gather(alpha_set, alpha_indices)
-    upper_alphas = torch.gather(alpha_set, alpha_indices + 1)
+    alpha_indices = torch.randint(0, len(alpha_set) - 1, (batch_size, 1))
+    lower_alphas = alpha_set[alpha_indices]
+    upper_alphas = alpha_set[alpha_indices + 1]
     alphas = torch.rand(lower_alphas.shape) * (upper_alphas - lower_alphas)
     alphas += lower_alphas
-    alphas = torch.reshape(alphas, (batch_size, 1, 1))
+    alphas = alphas.reshape(batch_size, 1)
+    alphas = alphas.repeat(1, 32)
 
     return alphas
 

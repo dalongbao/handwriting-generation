@@ -15,32 +15,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils 
-from preprocessing import load_datasets, IAMDataset, collate_fn
+from preprocessing import load_datasets, IAMDataset
 import model as miku # the naming scheme clashes with the torch naming scheme
 
-def train_step(x, pen_lifts, text, style_vectors, glob_args):
-    model, alpha_set, bce, train_loss, optimizer = glob_args
+def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce):
     device = next(model.parameters()).device
-    x = x.to(device)
+    strokes = strokes.to(device)
     pen_lifts = pen_lifts.to(device)
-    text.to_device()
+    text = text.to(device)
     style_vectors = style_vectors.to(device)
 
-    alphas = utils.get_alphas(len(x), alpha_set)  
-    eps = torch.randn_like(x)
-    x_perturbed = torch.sqrt(alphas) * x + torch.sqrt(1 - alphas) * eps
-
-    model.train() # set model to training mode
-    optimizer.zero_grad() # zero parameter grads
+    alphas = utils.get_alphas(len(strokes), alpha_set)  
+    eps = torch.randn_like(strokes)
+    x_perturbed = torch.sqrt(alphas) * strokes + torch.sqrt(1 - alphas) * eps
 
     score, pl_pred, att = model(x_perturbed, text, torch.sqrt(alphas), style_vectors) # forward
     loss = miku.loss_fn(eps, score, pen_lifts, pl_pred, alphas, bce)
 
-    loss.backward()
-    optimizer.step()
-
-    train_loss(loss.item())
-    return score, att
+    return loss, score, att
 
 def train(train_loader, model, iterations, optimizer, alpha_set, print_every=1000, save_every=10000):
     s = time.time() # maybe use perf counter?
@@ -54,35 +46,33 @@ def train(train_loader, model, iterations, optimizer, alpha_set, print_every=100
         try:
             strokes, text, style_vectors = next(dataloader)
         except StopIteration:
-            dataloader = iter(DataLoader(dataset, batch_size=32, shuffle=True))
+            dataloader = iter(train_loader)
             strokes, text, style_vectors = next(dataloader)
 
-            strokes = strokes.to(device)
-            text = text.to(device)
-            style_vectors = style_vectors.to(device)
+        strokes, pen_lifts = strokes[:, :, :2], strokes[:, :, 2:]
 
-            strokes, pen_lifts = strokes[:, :, :2], strokes[:, :, 2:]
+        model.train()
+        optimizer.zero_grad()
 
-            model.train()
-            optimizer.zero_grad()
+        loss, score, att = train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce)
+        
+        loss.backward()
+        optimizer.step()
 
-            loss, model_out, att = train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce)
-            
-            loss.backward()
-            optimizer.step()
+        train_loss.update(loss.item())
 
-            train_loss.update(loss.item())
+        if (count + 1) % print_every == 0:
+            print(f"Iteration {count + 1}, Loss {train_loss.avg:.6f}, Time {time.time() - s:.2f}s")
+            train_loss.reset()
 
-            if (count + 1) % print_every == 0:
-                print(f"Iteration {count + 1}, Loss {train_loss.avg:.6f}, Time {time.time() - s:.2f}s")
-                train_loss.reset()
+        if (count + 1) % save_every == 0:
+            os.makedirs('./weights', exist_ok=True)
+            save_path = f'./weights/model_step{count + 1}.pt'
+            torch.save(model.state_dict(), save_path)
 
-            if (count + 1) % save_every == 0:
-                save_path = f'./weights/model_step{count + 1}.pt'
-                torch.save(model.state_dict(), save_path)
-
-        # Save final model
-        torch.save(model.state_dict(), './weights/model.pt')
+    # Save final model
+    os.makedirs('./weights', exist_ok=True)
+    torch.save(model.state_dict(), './weights/model.pt')
 
 def main():
     parser = argparse.ArgumentParser()    
@@ -119,6 +109,7 @@ def main():
     tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
     beta_set = utils.get_beta_set()
     alpha_set = torch.cumprod(1 - beta_set, dim=0)
+    print(alpha_set.shape)
 
     style_extractor = miku.StyleExtractor()
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
