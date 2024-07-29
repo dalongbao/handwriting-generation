@@ -28,6 +28,9 @@ def train_step(x, pen_lifts, text, style_vectors, glob_args):
 
     alphas = utils.get_alphas(len(x), alpha_set)  
     eps = torch.randn_like(x)
+    print(alphas.shape)
+    print(x.shape)
+    print(eps.shape)
     x_perturbed = torch.sqrt(alphas) * x + torch.sqrt(1 - alphas) * eps
 
     model.train() # set model to training mode
