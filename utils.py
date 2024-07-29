@@ -20,8 +20,6 @@ def get_alphas(batch_size, alpha_set):
     alphas = torch.rand(lower_alphas.shape) * (upper_alphas - lower_alphas)
     alphas += lower_alphas
     alphas = alphas.reshape(batch_size, 1)
-    alphas = alphas.repeat(1, 32)
-
     return alphas
 
 def explin(min_val, max_val, L):

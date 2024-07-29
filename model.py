@@ -248,7 +248,7 @@ class DiffusionWriter(nn.Module):
     def __init__(self, num_layers: int = 4, c1: int = 128, c2: int = 192, c3: int = 256, drop_rate: float = 0.1, num_heads:int = 8):
         super(DiffusionWriter, self).__init__()
         self.input_fc = nn.Linear(c1, c1)
-        self.sigma_mlp = MLP(c1 // 4, 2048)
+        self.sigma_mlp = MLP(1, 2048) # MLP(c1 // 4, 2048)
         self.enc1 = ConvSubLayer(c1, [1,2])
         self.enc2 = ConvSubLayer(c2, [1, 2])
         self.enc3 = DecoderLayer(c2, 3, drop_rate, pos_factor=4)

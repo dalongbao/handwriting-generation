@@ -109,7 +109,6 @@ def main():
     tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
     beta_set = utils.get_beta_set()
     alpha_set = torch.cumprod(1 - beta_set, dim=0)
-    print(alpha_set.shape)
 
     style_extractor = miku.StyleExtractor()
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
