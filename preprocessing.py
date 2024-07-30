@@ -1,12 +1,15 @@
-import os
-import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
+from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+
 from PIL import Image
+import numpy as np
 import matplotlib.pyplot as plt
+
 import random
+import os
 import pickle
 import argparse
 import string
@@ -115,40 +118,18 @@ def parse_stroke_xml(path): # pad the xmls to 1000 strokes so everything is cons
     for i in range(3):
         strokes = combine_strokes(strokes, int(len(strokes)*0.2))
     
-    # Padding so all the inputs on the stroke dimension are of the same size, might have to tweak later (test np.ones) for perf
-    if len(strokes) < 994:
-        padding = np.zeros((994 - len(strokes), 3))
-        padding[:, 2] = 1.0
-        strokes = np.concatenate((strokes, padding))
     logger.info(f"Parsed stroke XML for {path}, found {len(strokes)} strokes")
 
     return strokes
-def read_img(path, height, fixed_width=1400):
+
+def read_img(path, height):
     img = Image.open(path).convert('L')
     img_arr = np.array(img)
     img_arr = remove_whitespace(img_arr, thresh=127)
-    
-    # Resize to the fixed height while maintaining aspect ratio
     h, w = img_arr.shape
-    new_w = int(height * w / h)
-    
-    transform = transforms.Compose([
-        transforms.Resize((height, new_w)),
-        transforms.ToTensor(),
-    ])
-    img_tensor = transform(Image.fromarray(img_arr))
-    
-    # Pad or crop to the fixed width
-    c, h, w = img_tensor.shape
-    if w < fixed_width:
-        # Pad
-        padding = torch.zeros(c, h, fixed_width - w)
-        img_tensor = torch.cat([img_tensor, padding], dim=2)
-    elif w > fixed_width:
-        # Crop
-        img_tensor = img_tensor[:, :, :fixed_width]
-
-    return (img_tensor * 255).byte().numpy()
+    new_w = height * w // h  # Use integer division
+    img_resized = Image.fromarray(img_arr).resize((new_w, height), Image.BILINEAR)
+    return torch.Tensor(np.array(img_resized).astype('uint8'))
 
 def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, height): # max sentence length is 24
     dataset = []
@@ -174,9 +155,6 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
             stroke_vec = parse_stroke_xml(os.path.join(path, samples[i])),
 
             tokenized_string = tokenizer.encode(text_dict[sample_id])
-            if len(tokenized_string) < 24:
-                padding = np.zeros(24 - len(tokenized_string))
-                tokenized_string = np.concatenate((tokenized_string, padding))
 
             img_vec = read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
             
@@ -230,15 +208,12 @@ def main():
     test_dataset = IAMDataset(test_strokes)
 
     # Save the datasets if needed
-    torch.save(train_dataset, './data/train_dataset.pth')
-    torch.save(test_dataset, './data/test_dataset.pth')
+    with open('./data/train_strokes.p', 'wb') as f:
+        pickle.dump(train_strokes, f)
+    with open('./data/test_strokes.p', 'wb') as f:
+        pickle.dump(test_strokes, f)
     
     logger.info("Datasets created and saved successfully")
-
-def load_datasets():
-    train_dataset = torch.load('./data/train_dataset.pth')
-    test_dataset = torch.load('./data/test_dataset.pth')
-    return train_dataset, test_dataset
 
 if __name__ == '__main__':
     main()

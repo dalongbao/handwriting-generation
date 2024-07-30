@@ -15,7 +15,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils 
-from preprocessing import load_datasets, IAMDataset
 import model as miku # the naming scheme clashes with the torch naming scheme
 
 def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, optimizer):
@@ -79,7 +78,7 @@ def main():
     parser = argparse.ArgumentParser()    
     parser.add_argument('--steps', help='number of trainsteps, default 60k', default=60000, type=int)
     parser.add_argument('--batchsize', help='default 96', default=96, type=int)
-    parser.add_argument('--seqlen', help='sequence length during training, default 480', default=480, type=int)
+    parser.add_argument('--seqlen', help='sequence length during training, default 480', default=994, type=int)
     parser.add_argument('--textlen', help='text length during training, default 50', default=50, type=int)
     parser.add_argument('--width', help='offline image width, default 1400', default=1400, type=int)
     parser.add_argument('--warmup', help='number of warmup steps, default 10k', default=10000, type=int)
@@ -94,7 +93,7 @@ def main():
     BATCH_SIZE = args.batchsize
     MAX_SEQ_LEN = args.seqlen
     MAX_TEXT_LEN = args.textlen
-    WIDTH = args.width
+    IMG_WIDTH = args.width
     DROP_RATE = args.dropout
     NUM_ATTLAYERS = args.num_attlayers
     WARMUP_STEPS = args.warmup
@@ -107,7 +106,7 @@ def main():
     BUFFER_SIZE = 3000
     L = 60
 
-    path = './data/train_dataset.pth'
+    path = './data/train_strokes.p'
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
     tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
     beta_set = utils.get_beta_set()
@@ -117,8 +116,8 @@ def main():
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
 
-    train_dataset, test_dataset = load_datasets()
-    train_loader = utils.create_dataset(train_dataset, style_extractor, BATCH_SIZE, device)
+    strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
+    train_loader = utils.build_dataset(strokes, text, samples, style_extractor , BATCH_SIZE, device)
 
     train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
 
