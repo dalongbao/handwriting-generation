@@ -16,15 +16,27 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
+def create_padding_mask(seq, repeats=1):
+    # Create mask where 0 elements are 1 and others are 0
+    seq = (seq == 0).float()
+    
+    # Repeat the mask 'repeats' times along the last dimension
+    seq = seq.repeat_interleave(repeats, dim=-1)
+    
+    # Add two new dimensions at positions 1 and 2
+    mask = seq.unsqueeze(1).unsqueeze(2)
+    
+    return mask
+
 def get_same_padding(kernel_size):
     if isinstance(kernel_size, int):
         return (kernel_size - 1) // 2
     else:
         return [(k - 1) // 2 for k in kernel_size]
 
-def reshape_up(x, factor=2):
-    x_shape = x.shape
-    return x.reshape(x_shape[0], x_shape[1] * factor, x_shape[2] // factor)
+def reshape_up(x, factor=5):
+    return x.view(x.shape[0], x.shape[1]*factor, x.shape[3]//factor)
+    # return F.interpolate(x, scale_factor=(factor, 1), mode='nearest')
 
 def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     """
@@ -171,6 +183,7 @@ class StyleExtractor(nn.Module):
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
         x = im.float() / 127.5 - 1
+        print(x.shape)
         x = x.repeat(1, 3, 1, 1)
         x = self.features(x)
         x = self.local_pool(x)
@@ -222,7 +235,7 @@ class Text_Style_Encoder(nn.Module):
         super().__init__()
         self.emb = nn.Embedding(73, d_model)
         self.text_conv = nn.Conv1d(in_channels=d_model, out_channels=d_model, kernel_size=3, padding=get_same_padding(3))
-        self.style_mlp = MLP(d_model, input_dims)
+        self.style_mlp = MLP(d_model, input_dims) 
         self.mha = nn.MultiheadAttention(d_model, 8)
         self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
         self.dropout = nn.Dropout(p=0.3)

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, TensorDataset
 from torchvision import datasets, transforms
 
 import os
@@ -9,9 +9,12 @@ import sys
 import pickle
 import time
 import string
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+from preprocessing import read_img, parse_stroke_xml
 
 def get_alphas(batch_size, alpha_set):
     alpha_indices = torch.randint(0, len(alpha_set) - 1, (batch_size, 1))
@@ -52,27 +55,65 @@ def preprocess_data(path, max_text_len, max_seq_len, img_width, img_height):
     samples = np.array(samples)
     return strokes, texts, samples
 
-class HandwritingDataset(Dataset):
-    def __init__(self, strokes, texts, samples, style_extractor):
-        self.strokes = [torch.tensor(stroke, dtype=torch.float32) for stroke in strokes]
-        self.texts = torch.tensor(texts, dtype=torch.long)
-        self.samples = torch.tensor(samples, dtype=torch.float32).permute(0, 3, 1, 2)  # Change to NCHW format
-        
-        # Extract style vectors
-        self.style_vectors = []
-        with torch.no_grad():
-            for sample in self.samples.split(32):  # Process in batches of 32
-                style_vec = style_extractor(sample)
-                self.style_vectors.append(style_vec)
-        self.style_vectors = torch.cat(self.style_vectors, dim=0)
+def preprocess_data(path, max_text_len, max_seq_len, img_width, img_height):
+    with open(path, 'rb') as f:
+        ds = pickle.load(f)
 
-    def __len__(self):
-        return len(self.strokes)
+    strokes, text, samples = [], [], []
+    for x, text, sample in ds:
+        if len(text) < max_text_len:
+            x = pad_stroke_seq(x, maxlength=max_seq_len)
+            zeros_text = np.zeros((max_text_len-len(text), ))
+            text = np.concatenate((text, zeros_text))
+            h, w, _ = sample.shape
 
-    def __getitem__(self, idx):
-        return self.strokes[idx], self.texts[idx], self.style_vectors[idx]
+            if x is not None and sample.shape[1] < img_width: 
+                sample = pad_img(sample, img_width, img_height)
+                strokes.append(x)
+                texts.append(text)
+                samples.append(sample)
+    texts = np.array(texts).astype('int32')
+    samples = np.array(samples)
+    return strokes, texts, samples
 
-def create_dataset(strokes, texts, samples, style_extractor, batch_size, buffer_size):
-    dataset = HandwritingDataset(strokes, texts, samples, style_extractor)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
+def create_dataset(train_dataset, style_extractor, batch_size, device):
+    # Create a DataLoader for the train_dataset
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    
+    style_vectors = []
+    
+    # Use torch.no_grad() for inference
+    with torch.no_grad():
+        for batch in train_loader:
+            strokes, texts, samples = batch
+            samples = samples.to(device)
+            style_vec = style_extractor(samples)
+            style_vectors.append(style_vec.cpu().numpy())
+    
+    # Concatenate all style vectors
+    style_vectors = np.concatenate(style_vectors, axis=0)
+    style_vectors = style_vectors.astype('float32')
+    
+    # Convert style vectors to PyTorch tensor
+    style_vectors_tensor = torch.tensor(style_vectors, device=device)
+    
+    # Create a new TensorDataset including the style vectors
+    new_dataset = TensorDataset(
+        train_dataset.tensors[0],  # strokes
+        train_dataset.tensors[1],  # texts
+        train_dataset.tensors[2],  # samples
+        style_vectors_tensor
+    )
+    
+    # Create a DataLoader with shuffling
+    dataloader = DataLoader(
+        new_dataset,
+        batch_size=batch_size,
+        shuffle=True,  # Shuffling is enabled
+        num_workers=0,  # No parallel workers
+        pin_memory=True,  # Helps speed up data transfer to GPU
+        drop_last=True
+    )
+    
     return dataloader
+

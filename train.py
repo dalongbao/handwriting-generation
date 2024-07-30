@@ -18,19 +18,17 @@ import utils
 from preprocessing import load_datasets, IAMDataset
 import model as miku # the naming scheme clashes with the torch naming scheme
 
-def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce):
+def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, optimizer):
     device = next(model.parameters()).device
     strokes = strokes.to(device)
     pen_lifts = pen_lifts.to(device)
     text = text.to(device)
     style_vectors = style_vectors.to(device)
 
-    alphas = utils.get_alphas(len(x), alpha_set)  
-    eps = torch.randn_like(x)
-    print(alphas.shape)
-    print(x.shape)
-    print(eps.shape)
-    x_perturbed = torch.sqrt(alphas) * x + torch.sqrt(1 - alphas) * eps
+    alphas = utils.get_alphas(len(strokes), alpha_set)  
+    alphas = alphas.view(-1, 1, 1)
+    eps = torch.randn_like(strokes)
+    x_perturbed = torch.sqrt(alphas) * strokes + torch.sqrt(1 - alphas) * eps
 
     model.train() # set model to training mode
     optimizer.zero_grad() # zero parameter grads
@@ -57,10 +55,7 @@ def train(train_loader, model, iterations, optimizer, alpha_set, print_every=100
 
         strokes, pen_lifts = strokes[:, :, :2], strokes[:, :, 2:]
 
-        model.train()
-        optimizer.zero_grad()
-
-        loss, score, att = train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce)
+        loss, score, att = train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, optimizer)
         
         loss.backward()
         optimizer.step()
@@ -109,9 +104,11 @@ def main():
     C2 = C1 * 3//2
     C3 = C1 * 2
     MAX_SEQ_LEN = MAX_SEQ_LEN - (MAX_SEQ_LEN%8) + 8
-
     BUFFER_SIZE = 3000
     L = 60
+
+    path = './data/train_dataset.pth'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
     tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
     beta_set = utils.get_beta_set()
     alpha_set = torch.cumprod(1 - beta_set, dim=0)
@@ -119,12 +116,9 @@ def main():
     style_extractor = miku.StyleExtractor()
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
-    
-    # Load the preprocessed datasets
-    train_dataset, test_dataset = load_datasets()
 
-    # Create a DataLoader for the training dataset
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    train_dataset, test_dataset = load_datasets()
+    train_loader = utils.create_dataset(train_dataset, style_extractor, BATCH_SIZE, device)
 
     train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
 

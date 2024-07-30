@@ -8,6 +8,8 @@
 
 i'm stupid i forgot the text embeddings entirely
 
+i'm stupid i forgot to use the style extractor entirely so the entire time the i was sending in unencoded vectors of the wrong size. well well well.
+
 so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
 [mnb](src/mobilenetbased.png)
 [dataset](https://fki.tic.heia-fr.ch/databases/download-the-iam-on-line-handwriting-database)

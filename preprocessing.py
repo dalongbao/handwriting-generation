@@ -147,7 +147,7 @@ def read_img(path, height, fixed_width=1400):
     elif w > fixed_width:
         # Crop
         img_tensor = img_tensor[:, :, :fixed_width]
-    
+
     return (img_tensor * 255).byte().numpy()
 
 def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, height): # max sentence length is 24
