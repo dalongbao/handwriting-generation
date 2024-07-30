@@ -183,8 +183,8 @@ class StyleExtractor(nn.Module):
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
         x = im.float() / 127.5 - 1
-        print(x.shape)
         x = x.repeat(1, 3, 1, 1)
+        x = x.permute(0, 3, 1, 2)
         x = self.features(x)
         x = self.local_pool(x)
         x = x.squeeze(2)

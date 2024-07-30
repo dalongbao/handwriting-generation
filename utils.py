@@ -63,13 +63,18 @@ def pad_stroke_seq(x, maxlength):
 def pad_img(img, width, height):
     img = torch.tensor(img, dtype=torch.uint8)  # Ensure img is a torch tensor
     
-    # Add channel dimension if the image is 2D
     if len(img.shape) == 2:
         img = img.unsqueeze(-1)
     
+    if img.shape[-1] == 1:
+        img = img.expand(-1, -1, 3)
+    
     pad_len = width - img.shape[1]
-    padding = torch.full((height, pad_len, 1), 255, dtype=torch.uint8)
-    return torch.cat((img, padding), dim=1)
+    padding = torch.full((height, pad_len, 3), 255, dtype=torch.uint8)
+    padded_img = torch.cat((img, padding), dim=1)
+    
+    return padded_img[:, :, :3]
+
 
 def preprocess_data(path, max_text_len, max_seq_len, img_width, img_height):
     with open(path, 'rb') as f:
@@ -104,7 +109,8 @@ def preprocess_data(path, max_text_len, max_seq_len, img_width, img_height):
 
 def build_dataset(strokes, texts, samples, style_extractor, batch_size, device):
     # Convert samples to PyTorch tensor and move to the specified device
-    samples_tensor = torch.tensor(samples, dtype=torch.float32, device=device)
+    samples_tensor = samples.clone().detach()
+    # samples_tensor = torch.tensor(samples, dtype=torch.float32, device=device)
     
     # Create a TensorDataset for samples
     samples_dataset = TensorDataset(samples_tensor)
@@ -142,3 +148,4 @@ def build_dataset(strokes, texts, samples, style_extractor, batch_size, device):
     )
     
     return dataloader
+

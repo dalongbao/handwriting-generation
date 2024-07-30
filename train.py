@@ -37,11 +37,10 @@ def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, o
 
     return loss, score, att
 
-def train(train_loader, model, iterations, optimizer, alpha_set, print_every=1000, save_every=10000):
+def train(train_loader, model, iterations, optimizer, alpha_set, print_every=1000, save_every=10000, device='mps'):
     s = time.time() # maybe use perf counter?
     bce = nn.BCELoss(reduction='none')
     train_loss = miku.AverageMeter()
-    device = next(model.parameters()).device
 
     dataloader = iter(train_loader)
 
@@ -117,9 +116,11 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
 
     strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
-    train_loader = utils.build_dataset(strokes, text, samples, style_extractor , BATCH_SIZE, device)
+    train_loader = utils.build_dataset(strokes, text, samples, style_extractor, BATCH_SIZE, device)
+    print(f'using device {device}')
+    print('starting training...')
 
-    train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY)
+    train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY, device)
 
 if __name__ == '__main__':
     main()

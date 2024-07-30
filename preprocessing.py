@@ -123,7 +123,7 @@ def parse_stroke_xml(path): # pad the xmls to 1000 strokes so everything is cons
     return strokes
 
 def read_img(path, height):
-    img = Image.open(path).convert('L')
+    img = Image.open(path)
     img_arr = np.array(img)
     img_arr = remove_whitespace(img_arr, thresh=127)
     h, w = img_arr.shape
@@ -157,6 +157,7 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
             tokenized_string = tokenizer.encode(text_dict[sample_id])
 
             img_vec = read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
+            print(np.array(list(stroke_vec)).shape)
             
             dataset.append((
                 stroke_vec,
