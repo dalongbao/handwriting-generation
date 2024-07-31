@@ -32,9 +32,9 @@ class IAMDataset(Dataset):
     def __getitem__(self, idx):
         strokes, text, image = self.data[idx]
         
-        strokes = torch.FloatTensor(strokes)
-        text = torch.LongTensor(text)
-        image = torch.FloatTensor(image).permute(2, 0, 1)  # Change from (H, W, C) to (C, H, W)
+        strokes = torch.Tensor(strokes)
+        text = torch.Tensor(text)
+        image = torch.Tensor(image).permute(2, 0, 1)  # Change from (H, W, C) to (C, H, W)
         
         return strokes, text, image
 
@@ -152,9 +152,9 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
                 continue
             
             """data to be added (this is here for debugging)"""
-            stroke_vec = parse_stroke_xml(os.path.join(path, samples[i])),
+            stroke_vec = torch.Tensor(parse_stroke_xml(os.path.join(path, samples[i])))
 
-            tokenized_string = tokenizer.encode(text_dict[sample_id])
+            tokenized_string = torch.Tensor(tokenizer.encode(text_dict[sample_id]))
 
             img_vec = read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
             
@@ -169,8 +169,7 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
 
 def main():
     parser = argparse.ArgumentParser()    
-    parser.add_argument('-t', '--text_path', default='./data/ascii',
-                        help='path to text labels, default ./data/ascii')
+    parser.add_argument('-t', '--text_path', default='./data/ascii', help='path to text labels, default ./data/ascii')
     parser.add_argument('-s', '--strokes_path', default='./data/lineStrokes',
                         help='path to stroke xml, default ./data/lineStrokes')
     parser.add_argument('-i', '--images_path', default='./data/lineImages',

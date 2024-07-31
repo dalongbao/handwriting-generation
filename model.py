@@ -171,8 +171,9 @@ class ConvSubLayer(nn.Module):
 class StyleExtractor(nn.Module):
     def __init__(self):
         super().__init__()
-        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
-        self.features = nn.Sequential(*list(self.mobilenet.features))
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT).to(self.device)
+        self.features = nn.Sequential(*list(self.mobilenet.features)).to(self.device)
 
         self.local_pool = nn.AvgPool2d((3, 3))
         self.freeze_all_layers()
@@ -183,12 +184,12 @@ class StyleExtractor(nn.Module):
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
         x = im.float() / 127.5 - 1
+        x = x.to(self.device)
         x = x.repeat(1, 3, 1, 1)
         x = x.permute(0, 3, 1, 2)
         x = self.features(x)
         x = self.local_pool(x)
         x = x.squeeze(2)
-
         return x
 
 class DecoderLayer(nn.Module):
@@ -247,7 +248,11 @@ class Text_Style_Encoder(nn.Module):
         self.text_mlp = MLP(d_model, d_model*2)
 
     def forward(self, x, style, sigma):
-        style = reshape_up(self.dropout(style), 5)
+        # (96, 1280, 3, 14)
+        # will cause an issue anyhow since 14 // 5 = 2
+        style = self.dropout(style)
+        style = style.view(style.shape[0], style.shape[1] * style.shape[2], style.shape[3])
+        style = reshape_up(style, 5)
         style = self.affine1(self.layernorm(self.style_mlp(style)), sigma)
         text = self.emb(text)
         text = self.affine2(self.layernorm(text), sigma)

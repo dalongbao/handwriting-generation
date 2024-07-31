@@ -35,11 +35,12 @@ def get_beta_set():
     return beta_set
 
 def pad_stroke_seq(x, maxlength):
-    if len(x) > maxlength or np.max(np.abs(x)) > 15:
+    if (x.shape[0] > maxlength) or (torch.max(torch.abs(x)) > 15):
         return None
-    
+   
     # Convert to tensor if it's not already
     if not isinstance(x, torch.Tensor):
+        print('not good')
         x = torch.tensor(x, dtype=torch.float32)
     
     # Remove single dimensions
@@ -61,7 +62,9 @@ def pad_stroke_seq(x, maxlength):
     return torch.cat((x, padding), dim=0)
 
 def pad_img(img, width, height):
-    img = torch.tensor(img, dtype=torch.uint8)  # Ensure img is a torch tensor
+    if not isinstance (img, torch.Tensor):
+        print('not good 2')
+        img = torch.tensor(img, dtype=torch.uint8)  # Ensure img is a torch tensor
     
     if len(img.shape) == 2:
         img = img.unsqueeze(-1)
