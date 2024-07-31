@@ -157,7 +157,6 @@ def create_dataset(formlist, strokes_path, images_path, tokenizer, text_dict, he
             tokenized_string = tokenizer.encode(text_dict[sample_id])
 
             img_vec = read_img(os.path.join(offline_path, shuffled_offline_samples[i]), height)
-            print(np.array(list(stroke_vec)).shape)
             
             dataset.append((
                 stroke_vec,
