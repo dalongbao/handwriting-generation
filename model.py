@@ -34,7 +34,7 @@ def get_same_padding(kernel_size):
     else:
         return [(k - 1) // 2 for k in kernel_size]
 
-def reshape_up(x, factor=5):
+def reshape_up(x, factor=2):
     return x.view(x.shape[0], x.shape[1]*factor, x.shape[3]//factor)
     # return F.interpolate(x, scale_factor=(factor, 1), mode='nearest')
 
@@ -248,8 +248,8 @@ class Text_Style_Encoder(nn.Module):
         self.text_mlp = MLP(d_model, d_model*2)
 
     def forward(self, x, style, sigma):
-        # (96, 1280, 3, 14)
-        # will cause an issue anyhow since 14 // 5 = 2
+        # (96, 1280, 3, 14) - batch size, img, channels, sentence length
+        # role of reshape_up is to 
         style = self.dropout(style)
         style = style.view(style.shape[0], style.shape[1] * style.shape[2], style.shape[3])
         style = reshape_up(style, 5)
