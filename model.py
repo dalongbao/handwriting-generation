@@ -251,7 +251,7 @@ class Text_Style_Encoder(nn.Module):
         self.affine4 = AffineTransformLayer(d_model)
         self.text_mlp = MLP(d_model, d_model*2)
 
-    def forward(self, x, style, sigma):
+    def forward(self, text, style, sigma):
         style = self.dropout(style)
         style = reshape_up(style, 5) # style shape is now (batch_size, flattened seq of h x w, 1280)
         style = self.affine1(self.layernorm(self.style_mlp(style)), sigma)
