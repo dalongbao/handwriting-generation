@@ -10,7 +10,11 @@ i'm stupid i forgot the text embeddings entirely
 
 i'm stupid i forgot to use the style extractor entirely so the entire time the i was sending in unencoded vectors of the wrong size. well well well.
 
-so new architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
+5/8 log (i'm cooked pick up here next time):
+* convsublayer dims aren't matching, specifically after conv_skip (the convolution expects 64 but is getting 128)
+* also i'm not sure if the transpose (to accomodate for channels in conv_skip) has any effects in the future. maybe reverse it?
+
+architecture based on [this paper](https://arxiv.org/pdf/2011.06704):
 [mnb](src/mobilenetbased.png)
 [dataset](https://fki.tic.heia-fr.ch/databases/download-the-iam-on-line-handwriting-database)
 

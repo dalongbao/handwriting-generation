@@ -155,7 +155,8 @@ class ConvSubLayer(nn.Module):
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x, alpha):
-        x_skip = self.conv.skip(x)
+        x = x.transpose(1, 2)
+        x_skip = self.conv_skip(x)
         x = self.conv1(self.silu(x))
         x = self.dropout(self.affine1(x, alpha))
 
@@ -267,7 +268,7 @@ class Text_Style_Encoder(nn.Module):
 class DiffusionWriter(nn.Module):
     def __init__(self, num_layers: int = 4, c1: int = 128, c2: int = 192, c3: int = 256, drop_rate: float = 0.1, num_heads:int = 8):
         super(DiffusionWriter, self).__init__()
-        self.input_fc = nn.Linear(c1, c1)
+        self.input_fc = nn.Linear(2, c1, c1)
         self.sigma_mlp = MLP(1, 2048) # MLP(c1 // 4, 2048)
         self.enc1 = ConvSubLayer(c1, [1,2])
         self.enc2 = ConvSubLayer(c2, [1, 2])
