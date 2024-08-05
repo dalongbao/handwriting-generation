@@ -35,8 +35,7 @@ def get_same_padding(kernel_size):
         return [(k - 1) // 2 for k in kernel_size]
 
 def reshape_up(x, factor=2):
-    return x.view(x.shape[0], x.shape[1]*factor, x.shape[3]//factor)
-    # return F.interpolate(x, scale_factor=(factor, 1), mode='nearest')
+    return x.view(x.shape[0], x.shape[1]*factor, x.shape[2]//factor)
 
 def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     """
@@ -184,12 +183,15 @@ class StyleExtractor(nn.Module):
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
         x = im.float() / 127.5 - 1
-        x = x.to(self.device)
-        x = x.repeat(1, 3, 1, 1)
-        x = x.permute(0, 3, 1, 2)
-        x = self.features(x)
+        x = x.to(self.device) 
+        x = x.repeat(1, 3, 1, 1) # shape is (batch, no. strokes?, img, channels)
+        x = x.permute(0, 3, 1, 2) # shape is (batch, channels, no. strokes?, img) (necessary for pytorch mobilenet dims btw)
+        x = self.features(x) # mobilenet features output is (batch_size, 1280, height/32, width/32) where 1280 is output channels
         x = self.local_pool(x)
-        x = x.squeeze(2)
+
+        # reshaping to fit the reshaping dims - now it's (batch_size, flattened sequence, channels)
+        batch, channels, h, w = x.shape
+        x = x.reshape(batch, channels, h*w).transpose(1, 2)
         return x
 
 class DecoderLayer(nn.Module):
@@ -249,9 +251,10 @@ class Text_Style_Encoder(nn.Module):
 
     def forward(self, x, style, sigma):
         # (96, 1280, 3, 14) - batch size, img, channels, sentence length
-        # role of reshape_up is to 
+        # maybe the style vector shouldn't include text
+        # ideally i'd want (batch, channels, 1280) to be the shape
         style = self.dropout(style)
-        style = style.view(style.shape[0], style.shape[1] * style.shape[2], style.shape[3])
+        # style = style.view(style.shape[0], style.shape[1] * style.shape[2], style.shape[3]) # this is probably wrong btw
         style = reshape_up(style, 5)
         style = self.affine1(self.layernorm(self.style_mlp(style)), sigma)
         text = self.emb(text)

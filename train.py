@@ -76,7 +76,7 @@ def train(train_loader, model, iterations, optimizer, alpha_set, print_every=100
 def main():
     parser = argparse.ArgumentParser()    
     parser.add_argument('--steps', help='number of trainsteps, default 60k', default=60000, type=int)
-    parser.add_argument('--batchsize', help='default 96', default=96, type=int)
+    parser.add_argument('--batchsize', help='default 96', default=32, type=int)
     parser.add_argument('--seqlen', help='sequence length during training, default 480', default=994, type=int)
     parser.add_argument('--textlen', help='text length during training, default 50', default=50, type=int)
     parser.add_argument('--width', help='offline image width, default 1400', default=1400, type=int)
@@ -116,6 +116,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
 
     strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
+    print(samples.shape)
     train_loader = utils.build_dataset(strokes, text, samples, style_extractor, BATCH_SIZE, device)
     print(f'using device {device}')
     print('starting training...')

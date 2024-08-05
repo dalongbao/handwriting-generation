@@ -40,7 +40,6 @@ def pad_stroke_seq(x, maxlength):
    
     # Convert to tensor if it's not already
     if not isinstance(x, torch.Tensor):
-        print('not good')
         x = torch.tensor(x, dtype=torch.float32)
     
     # Remove single dimensions
@@ -63,7 +62,6 @@ def pad_stroke_seq(x, maxlength):
 
 def pad_img(img, width, height):
     if not isinstance (img, torch.Tensor):
-        print('not good 2')
         img = torch.tensor(img, dtype=torch.uint8)  # Ensure img is a torch tensor
     
     if len(img.shape) == 2:
