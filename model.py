@@ -132,11 +132,10 @@ class AffineTransformLayer(nn.Module):
         nn.init.zeros_(self.gamma_emb.bias)
 
     def forward(self, x, sigma):
-        if sigma.dim() == 1:
-            sigma = sigma.unsqueeze(1)
+        sigma = sigma.view(sigma.size(0), -1)
 
-        gammas = self.gamma_emb(sigma).unsqueeze(2).unsqueeze(3)
-        betas = self.beta_emb(sigma).unsqueeze(2).unsqueeze(3)
+        gammas = self.gamma_emb(sigma).view(x.size(0), 1, -1)
+        betas = self.beta_emb(sigma).view(x.size(0), 1, -1)
 
         return x * gammas + betas 
 
@@ -241,7 +240,7 @@ class Text_Style_Encoder(nn.Module):
         self.emb = nn.Embedding(100277, d_model)
         self.text_conv = nn.Conv1d(in_channels=d_model, out_channels=d_model, kernel_size=3, padding=get_same_padding(3))
         self.style_mlp = MLP(256, input_dims, d_model) 
-        self.mha = nn.MultiheadAttention(d_model, 8)
+        self.mha = nn.MultiheadAttention(d_model, 8, batch_first=True)
         self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
         self.dropout = nn.Dropout(p=0.3)
 
@@ -258,6 +257,8 @@ class Text_Style_Encoder(nn.Module):
         text = self.emb(text)
         text = self.affine2(self.layernorm(text), sigma)
         
+        print(text.shape)
+        print(style.shape)
         mha_out, _ = self.mha(text, style, style)
         text = self.affine3(self.layernorm(text + mha_out), sigma)
         text_out = self.affine4(self.layernorm(self.text_mlp(text)), sigma)
