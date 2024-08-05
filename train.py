@@ -104,7 +104,7 @@ def main():
     MAX_SEQ_LEN = MAX_SEQ_LEN - (MAX_SEQ_LEN%8) + 8
     BUFFER_SIZE = 3000
     L = 60
-
+    
     path = './data/train_strokes.p'
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
     tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
@@ -116,7 +116,6 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
 
     strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
-    print(samples.shape)
     train_loader = utils.build_dataset(strokes, text, samples, style_extractor, BATCH_SIZE, device)
     print(f'using device {device}')
     print('starting training...')

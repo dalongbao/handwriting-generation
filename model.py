@@ -100,16 +100,18 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class MLP(nn.Module):
-    def __init__(self, input_dims: int, hidden_dims:int = 768, act_before: bool =True):
+    def __init__(self, input_dims: int, hidden_dims:int = 768, output_dims: int = None, act_before: bool =True):
         super(MLP, self).__init__()
         self.layers = []
         if act_before:
             self.layers.append(nn.SiLU())
 
+        self.output_dims = output_dims if output_dims else input_dims
+
         self.layers.extend([
             nn.Linear(input_dims, hidden_dims), 
             nn.SiLU(), 
-            nn.Linear(hidden_dims, input_dims)
+            nn.Linear(hidden_dims, self.output_dims)
             ])
 
         self.ff = nn.Sequential(*self.layers)
@@ -238,7 +240,7 @@ class Text_Style_Encoder(nn.Module):
         super().__init__()
         self.emb = nn.Embedding(73, d_model)
         self.text_conv = nn.Conv1d(in_channels=d_model, out_channels=d_model, kernel_size=3, padding=get_same_padding(3))
-        self.style_mlp = MLP(d_model, input_dims) 
+        self.style_mlp = MLP(256, input_dims, d_model) 
         self.mha = nn.MultiheadAttention(d_model, 8)
         self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
         self.dropout = nn.Dropout(p=0.3)
@@ -250,12 +252,8 @@ class Text_Style_Encoder(nn.Module):
         self.text_mlp = MLP(d_model, d_model*2)
 
     def forward(self, x, style, sigma):
-        # (96, 1280, 3, 14) - batch size, img, channels, sentence length
-        # maybe the style vector shouldn't include text
-        # ideally i'd want (batch, channels, 1280) to be the shape
         style = self.dropout(style)
-        # style = style.view(style.shape[0], style.shape[1] * style.shape[2], style.shape[3]) # this is probably wrong btw
-        style = reshape_up(style, 5)
+        style = reshape_up(style, 5) # style shape is now (batch_size, flattened seq of h x w, 1280)
         style = self.affine1(self.layernorm(self.style_mlp(style)), sigma)
         text = self.emb(text)
         text = self.affine2(self.layernorm(text), sigma)
