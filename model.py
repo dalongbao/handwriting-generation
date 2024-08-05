@@ -238,7 +238,7 @@ class DecoderLayer(nn.Module):
 class Text_Style_Encoder(nn.Module):
     def __init__(self, d_model: int, input_dims: int = 512):
         super().__init__()
-        self.emb = nn.Embedding(73, d_model)
+        self.emb = nn.Embedding(100277, d_model)
         self.text_conv = nn.Conv1d(in_channels=d_model, out_channels=d_model, kernel_size=3, padding=get_same_padding(3))
         self.style_mlp = MLP(256, input_dims, d_model) 
         self.mha = nn.MultiheadAttention(d_model, 8)

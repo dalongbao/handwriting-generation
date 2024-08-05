@@ -107,7 +107,7 @@ def main():
     
     path = './data/train_strokes.p'
     device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
-    tokenizer = tiktoken.get_encoding('o200k_base') # using tiktoken instead of their default tokenizer
+    tokenizer = tiktoken.get_encoding('cl100k_base') # using tiktoken instead of their default tokenizer
     beta_set = utils.get_beta_set()
     alpha_set = torch.cumprod(1 - beta_set, dim=0)
 
