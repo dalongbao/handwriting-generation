@@ -101,8 +101,6 @@ class PositionalEncoding(nn.Module):
         self.pos_encoding = positional_encoding(max_len, d_model, pos_factor)
     
     def forward(self, x):
-        print(self.pos_encoding.shape)
-        print(x.shape)
         return x + self.pos_encoding[:, :x.size(1), :].to(x.device)
 
 class MLP(nn.Module):
@@ -230,17 +228,25 @@ class DecoderLayer(nn.Module):
         text = self.affine0(self.layernorm(text), sigma)
         text_pe = text + self.text_pe(text) # self.text_pe[:, :text.shape[1]]  # Use square brackets instead of parentheses
 
+        x = x.transpose(1, 2)
         x_pe = x + self.stroke_pe(x)
+
+        text_mask = ~text_mask.squeeze(1).squeeze(1).bool() # shape (32, 50)
+        x_pe = x_pe.transpose(0, 1)  # Shape: [500, 32, 192]
+        text_pe = text_pe.transpose(0, 1)  # Shape: [50, 32, 192]
+        text = text.transpose(0, 1)  # Shape: [50, 32, 192]
+
         x2, att = self.mha1(x_pe, text_pe, text, text_mask)
+        x2 = x2.transpose(0, 1)
         x2 = self.layernorm(self.dropout(x2))
         x2 = self.affine1(x2, sigma) + x
 
         x2_pe = x2 + self.stroke_pe(x2) # update this here too
         x3, _ = self.mha2(x2_pe, x2_pe, x2)
-        x3 = self.layernorm(x2 + self.drop(x3))
+        x3 = self.layernorm(x2 + self.dropout(x3))
         x3 = self.affine2(x3, sigma)
 
-        x4 = self.mlp(x3)
+        x4 = self.ff(x3)
         x4 = self.dropout(x4) + x3
         out = self.affine3(self.layernorm(x4), sigma)
         return out, att
