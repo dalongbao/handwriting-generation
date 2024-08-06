@@ -131,8 +131,8 @@ def build_dataset(strokes, texts, samples, style_extractor, batch_size, device):
     style_vectors = style_vectors.astype('float32')
     
     # Convert all data to PyTorch tensors
-    strokes_tensor = torch.tensor(strokes, dtype=torch.float32, device=device)
-    texts_tensor = torch.tensor(texts, dtype=torch.long, device=device)
+    strokes_tensor = strokes.to(dtype=torch.float32, device=device) # torch.tensor(strokes, dtype=torch.float32, device=device)
+    texts_tensor = texts.to(dtype=torch.long, device=device)  # torch.tensor(texts, dtype=torch.long, device=device)
     style_vectors_tensor = torch.tensor(style_vectors, device=device)
     
     # Create a TensorDataset

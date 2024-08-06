@@ -79,25 +79,31 @@ class InvSqrtSchedule(_LRScheduler):
         lr_factor = 1 / torch.sqrt(torch.tensor(self.d_model, dtype=torch.float32)) * torch.min(arg1, arg2)
         return [base_lr * lr_factor for base_lr in self.base_lrs]
 
+def get_angles(pos, i, d_model, pos_factor=1):
+    angle_rates = 1 / np.power(10000, (2 * (i//2)) / np.float32(d_model))
+    return pos * angle_rates / pos_factor
+
+def positional_encoding(max_position, d_model, pos_factor=1):
+    angle_rads = get_angles(np.arange(max_position)[:, np.newaxis],
+                            np.arange(d_model)[np.newaxis, :],
+                            d_model,
+                            pos_factor=pos_factor)
+    
+    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    
+    pos_encoding = angle_rads[np.newaxis, ...]
+    return torch.FloatTensor(pos_encoding)
+
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, pos_factor = 1):
+    def __init__(self, d_model, max_len=5000, pos_factor=1):
         super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        position = torch.arange(max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term) / pos_factor
-        pe[:, 0, 1::2] = torch.cos(position * div_term) / pos_factor
-        self.register_buffer('pe', pe)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Arguments:
-            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
-        """
-        x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
+        self.pos_encoding = positional_encoding(max_len, d_model, pos_factor)
+    
+    def forward(self, x):
+        print(self.pos_encoding.shape)
+        print(x.shape)
+        return x + self.pos_encoding[:, :x.size(1), :].to(x.device)
 
 class MLP(nn.Module):
     def __init__(self, input_dims: int, hidden_dims:int = 768, output_dims: int = None, act_before: bool =True):
@@ -152,7 +158,7 @@ class ConvSubLayer(nn.Module):
         
         self.conv_skip = nn.Conv1d(self.in_channels, filters, 3, padding=1)
         self.conv1 = nn.Conv1d(self.in_channels, filters // 2, 3, dilation=dils[0], padding='same')
-        self.conv2 = nn.Conv1d(filters // 2, filters, 3, dilation=dils[1], padding='same')
+        self.conv2 = nn.Conv1d(filters // 2, filters, 3, dilation=dils[0], padding='same')
 
         self.fc = nn.Linear(filters, filters)
         self.dropout = nn.Dropout(drop_rate)
@@ -201,13 +207,13 @@ class StyleExtractor(nn.Module):
         return x
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, drop_rate: float = 0.1, pos_factor: float = 1):
+    def __init__(self, d_model: int, num_heads: int, text_channels: int = 384, drop_rate: float = 0.1, pos_factor: float = 1):
         super().__init__()
         self.text_pe = PositionalEncoding(d_model=d_model, max_len=2000)
         self.stroke_pe = PositionalEncoding(d_model=d_model, max_len=2000)
         self.dropout = nn.Dropout(drop_rate)
         self.layernorm = nn.LayerNorm(normalized_shape=d_model, eps=1e-6, elementwise_affine=False)
-        self.text_dense = nn.Linear(d_model, d_model)
+        self.text_fc = nn.Linear(text_channels, d_model)
 
         self.mha1 = nn.MultiheadAttention(d_model, num_heads)
         self.mha2 = nn.MultiheadAttention(d_model, num_heads)
@@ -219,17 +225,17 @@ class DecoderLayer(nn.Module):
 
         self.silu = nn.SiLU()
 
-    def forward(self, x, text, sigma, text_mask):
-        text = self.text_dense(self.silu(text))
+    def forward(self, x, text, sigma, text_mask): # may need to invert text mask text_mask = ~text_mask
+        text = self.text_fc(self.silu(text))
         text = self.affine0(self.layernorm(text), sigma)
-        text_pe = text + self.text_pe[:, :text.shape[1]]  # Use square brackets instead of parentheses
+        text_pe = text + self.text_pe(text) # self.text_pe[:, :text.shape[1]]  # Use square brackets instead of parentheses
 
-        x_pe = x + self.stroke_pe[:, x.shape[1]]
+        x_pe = x + self.stroke_pe(x)
         x2, att = self.mha1(x_pe, text_pe, text, text_mask)
         x2 = self.layernorm(self.dropout(x2))
         x2 = self.affine1(x2, sigma) + x
 
-        x2_pe = x2 + self.stroke_pe[:, x.shape[1]]
+        x2_pe = x2 + self.stroke_pe(x2) # update this here too
         x3, _ = self.mha2(x2_pe, x2_pe, x2)
         x3 = self.layernorm(x2 + self.drop(x3))
         x3 = self.affine2(x3, sigma)
@@ -272,11 +278,11 @@ class DiffusionWriter(nn.Module):
         super(DiffusionWriter, self).__init__()
         self.input_fc = nn.Linear(2, c1, c1)
         self.sigma_mlp = MLP(1, 2048) # MLP(c1 // 4, 2048)
-        self.enc1 = ConvSubLayer(c1, c1, [1,2])
-        self.enc2 = ConvSubLayer(c2, c2, [1, 2])
-        self.enc3 = DecoderLayer(c2, 3, drop_rate, pos_factor=4)
-        self.enc4 = ConvSubLayer(c3, c3, [1, 2])
-        self.enc5 = DecoderLayer(c3, 4, drop_rate, pos_factor=2)
+        self.enc1 = ConvSubLayer(c1, c1, [1, 2])
+        self.enc2 = ConvSubLayer(c2, c1, [1, 2])
+        self.enc3 = DecoderLayer(c2, 3, 384, drop_rate, pos_factor=4) # 384 for text_channels
+        self.enc4 = ConvSubLayer(c3, c2, [1, 2])
+        self.enc5 = DecoderLayer(c3, 4, 384, drop_rate, pos_factor=2)
         self.pool = nn.AvgPool1d(2)
         self.upsample = nn.Upsample(2)
 
@@ -286,11 +292,11 @@ class DiffusionWriter(nn.Module):
 
         self.text_style_encoder = Text_Style_Encoder(c2*2, c2*4)
         self.att_fc = nn.Linear(c2*2, c2*2)
-        self.att_layers = [DecoderLayer(c2*2, 6, drop_rate) for _ in range(num_layers)]
+        self.att_layers = [DecoderLayer(c2*2, 6, c2*2, drop_rate) for _ in range(num_layers)] # i forsee an issue here
 
         self.dec3 = ConvSubLayer(c3, c3, [1,2])
-        self.dec2 = ConvSubLayer(c2, c2, [1,1])
-        self.dec1 = ConvSubLayer(c1, c1, [1,1])
+        self.dec2 = ConvSubLayer(c2, c3, [1,1])
+        self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
         self.output_fc = nn.Linear(2, 2)
         self.pen_lifts_fc = nn.Sequential(nn.Linear(1, 1), nn.Sigmoid())
@@ -302,14 +308,12 @@ class DiffusionWriter(nn.Module):
 
         x = self.input_fc(strokes)
         h1 = self.enc1(x, sigma)
-        h2 = self.pool(h1)
+        h2 = self.pool(h1).transpose(1, 2)
 
-        print(h2.shape)
         h2 = self.enc2(h2, sigma)
         h2, _ = self.enc3(h2, text, sigma, text_mask)
-        h3 = self.pool(h2)
+        h3 = self.pool(h2).transpose(1, 2)
 
-        print(h3.shape)
         h3 = self.enc4(h3, sigma)
         h3, _ = self.enc5(h3, text, sigma, text_mask)
         x = self.pool(h3)
