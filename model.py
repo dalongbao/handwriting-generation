@@ -140,16 +140,19 @@ class AffineTransformLayer(nn.Module):
         return x * gammas + betas 
 
 class ConvSubLayer(nn.Module):
-    def __init__(self, filters, dils=[1,1], drop_rate=0.0): # activation SiLU
+    def __init__(self, filters, in_channels=None, dils=[1,1], drop_rate=0.0): # activation SiLU
         super().__init__()
+
+        self.in_channels = in_channels if in_channels else filters
+
         self.silu = nn.SiLU()
         self.affine1 = AffineTransformLayer(filters // 2)
         self.affine2 = AffineTransformLayer(filters)
         self.affine3 = AffineTransformLayer(filters)
         
-        self.conv_skip = nn.Conv1d(filters, filters, 3, padding=1)
-        self.conv1 = nn.Conv1d(filters // 2, filters // 2, 3, dilation=dils[1])
-        self.conv2 = nn.Conv1d(filters, filters, 3, dilation=dils[1])
+        self.conv_skip = nn.Conv1d(self.in_channels, filters, 3, padding=1)
+        self.conv1 = nn.Conv1d(self.in_channels, filters // 2, 3, dilation=dils[0], padding='same')
+        self.conv2 = nn.Conv1d(filters // 2, filters, 3, dilation=dils[1], padding='same')
 
         self.fc = nn.Linear(filters, filters)
         self.dropout = nn.Dropout(drop_rate)
@@ -157,14 +160,15 @@ class ConvSubLayer(nn.Module):
     def forward(self, x, alpha):
         x = x.transpose(1, 2)
         x_skip = self.conv_skip(x)
+
         x = self.conv1(self.silu(x))
-        x = self.dropout(self.affine1(x, alpha))
+        x = self.dropout(self.affine1(x.transpose(1, 2), alpha)).transpose(1, 2)
 
-        x = self.conv2(sel.silu(x))
-        x = self.dropout(self.affine2(x, alpha))
+        x = self.conv2(self.silu(x))
+        x = self.dropout(self.affine2(x.transpose(1, 2), alpha)).transpose(1, 2)
 
-        x = self.fc(self.silu(x))
-        x = self.drop(self.affine3(x, alpha))
+        x = self.fc(x.transpose(1, 2))
+        x = self.dropout(self.affine3(x, alpha)).transpose(1, 2)
         x += x_skip
 
         return x
@@ -258,8 +262,6 @@ class Text_Style_Encoder(nn.Module):
         text = self.emb(text)
         text = self.affine2(self.layernorm(text), sigma)
         
-        print(text.shape)
-        print(style.shape)
         mha_out, _ = self.mha(text, style, style)
         text = self.affine3(self.layernorm(text + mha_out), sigma)
         text_out = self.affine4(self.layernorm(self.text_mlp(text)), sigma)
@@ -270,10 +272,10 @@ class DiffusionWriter(nn.Module):
         super(DiffusionWriter, self).__init__()
         self.input_fc = nn.Linear(2, c1, c1)
         self.sigma_mlp = MLP(1, 2048) # MLP(c1 // 4, 2048)
-        self.enc1 = ConvSubLayer(c1, [1,2])
-        self.enc2 = ConvSubLayer(c2, [1, 2])
+        self.enc1 = ConvSubLayer(c1, c1, [1,2])
+        self.enc2 = ConvSubLayer(c2, c2, [1, 2])
         self.enc3 = DecoderLayer(c2, 3, drop_rate, pos_factor=4)
-        self.enc4 = ConvSubLayer(c3, [1, 2])
+        self.enc4 = ConvSubLayer(c3, c3, [1, 2])
         self.enc5 = DecoderLayer(c3, 4, drop_rate, pos_factor=2)
         self.pool = nn.AvgPool1d(2)
         self.upsample = nn.Upsample(2)
@@ -286,9 +288,9 @@ class DiffusionWriter(nn.Module):
         self.att_fc = nn.Linear(c2*2, c2*2)
         self.att_layers = [DecoderLayer(c2*2, 6, drop_rate) for _ in range(num_layers)]
 
-        self.dec3 = ConvSubLayer(c3, [1,2])
-        self.dec2 = ConvSubLayer(c2, [1,1])
-        self.dec1 = ConvSubLayer(c1, [1,1])
+        self.dec3 = ConvSubLayer(c3, c3, [1,2])
+        self.dec2 = ConvSubLayer(c2, c2, [1,1])
+        self.dec1 = ConvSubLayer(c1, c1, [1,1])
 
         self.output_fc = nn.Linear(2, 2)
         self.pen_lifts_fc = nn.Sequential(nn.Linear(1, 1), nn.Sigmoid())
@@ -302,10 +304,12 @@ class DiffusionWriter(nn.Module):
         h1 = self.enc1(x, sigma)
         h2 = self.pool(h1)
 
+        print(h2.shape)
         h2 = self.enc2(h2, sigma)
         h2, _ = self.enc3(h2, text, sigma, text_mask)
         h3 = self.pool(h2)
 
+        print(h3.shape)
         h3 = self.enc4(h3, sigma)
         h3, _ = self.enc5(h3, text, sigma, text_mask)
         x = self.pool(h3)
