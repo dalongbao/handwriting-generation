@@ -307,7 +307,7 @@ class DiffusionWriter(nn.Module):
         self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
         self.output_fc = nn.Linear(192, 2)
-        self.pen_lifts_fc = nn.Sequential(nn.Linear(2, 1), nn.Sigmoid())
+        self.pen_lifts_fc = nn.Sequential(nn.Linear(192, 1), nn.Sigmoid())
 
         self.proj1 = nn.Linear(96, 384)
         self.proj2 = nn.Linear(96, 384)
