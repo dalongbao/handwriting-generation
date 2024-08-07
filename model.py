@@ -292,7 +292,7 @@ class DiffusionWriter(nn.Module):
         self.pool = nn.AvgPool1d(2)
         self.upsample = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
         self.channel_adj = nn.Conv1d(c2*2, 256, kernel_size=1)
-        self.channel_adj2 = nn.Conv1d(500, 256, kernel_size=1)
+        self.channel_adj2 = nn.Conv1d(384, 192, kernel_size=1)
 
         self.skip_conv1 = nn.Conv1d(c2, c2, kernel_size=3, padding=get_same_padding(3))
         self.skip_conv2 = nn.Conv1d(c3, c3, kernel_size=3, padding=get_same_padding(3))
@@ -306,11 +306,14 @@ class DiffusionWriter(nn.Module):
         self.dec2 = ConvSubLayer(c2, c3, [1,1])
         self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
-        self.output_fc = nn.Linear(2, 2)
-        self.pen_lifts_fc = nn.Sequential(nn.Linear(1, 1), nn.Sigmoid())
+        self.output_fc = nn.Linear(192, 2)
+        self.pen_lifts_fc = nn.Sequential(nn.Linear(2, 1), nn.Sigmoid())
 
         self.proj1 = nn.Linear(96, 384)
         self.proj2 = nn.Linear(96, 384)
+        self.proj3 = nn.Linear(500, 256)
+        self.proj4 = nn.Linear(128, 192)
+        self.proj5 = nn.Linear(1000, 192)
 
     def forward(self, strokes, text, sigma, style_vector):
         sigma = self.sigma_mlp(sigma)
@@ -334,24 +337,20 @@ class DiffusionWriter(nn.Module):
             x, att = att_layer(x, text, sigma, text_mask)
         
         # x = self.upsample(x) # removed upsampling because the dims fit already???
-        # ok i see now - upsample is because the h-series are 500, etc, etc
-        print(h3.shape)
+        # ok i see now - upsample is because the h-series are 256, 500, 1000 etc, etc (why not powers of 2?) (fix that)
+        # my solution is to make the h's smaller instead
         x = self.channel_adj(x).transpose(1, 2)
         h3 = self.proj2(h3.transpose(1, 2)).transpose(1, 2)
         x = x + self.skip_conv3(h3)
         x = self.dec3(x, sigma)
 
-        print(x.shape)
-        print(h2.shape)
-        print(h1.shape)
-
-        h2 = self.channel_adj2(h2)
-        print(h2.shape)
+        x = self.channel_adj2(x.transpose(1,2)).transpose(1,2)
+        h2 = self.proj3(h2.transpose(1, 2)).transpose(1, 2)
         x = x + self.skip_conv2(h2)
-        x = self.dec2(x, sigma)
+        x = self.dec2(x.transpose(1, 2), sigma)
 
-        print(x.shape)
-
+        h1 = self.proj4(h1.transpose(1, 2)).transpose(1, 2)
+        h1 = self.proj5(h1)
         x = x + self.skip_conv1(h1)
         x = self.dec1(x, sigma)
         
