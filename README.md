@@ -10,7 +10,7 @@ i'm stupid i forgot the text embeddings entirely
 
 i'm stupid i forgot to use the style extractor entirely so the entire time the i was sending in unencoded vectors of the wrong size. well well well.
 
-5/8 log (i'm cooked pick up here next time):
+5/8 log (i'm cooked pick up here next time) (fixed):
 * convsublayer dims aren't matching, specifically after conv_skip (the convolution expects 64 but is getting 128)
 * also i'm not sure if the transpose (to accomodate for channels in conv_skip) has any effects in the future. maybe reverse it?
 

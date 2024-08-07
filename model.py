@@ -287,17 +287,19 @@ class DiffusionWriter(nn.Module):
         self.enc1 = ConvSubLayer(c1, c1, [1, 2])
         self.enc2 = ConvSubLayer(c2, c1, [1, 2])
         self.enc3 = DecoderLayer(c2, 3, 384, drop_rate, pos_factor=4) # 384 for text_channels
-        self.enc4 = ConvSubLayer(c3, c2, [1, 2])
+        self.enc4 = ConvSubLayer(c3, 500, [1, 2]) # 500 channel size is slapped on to make it work i'm bastardizing the model
         self.enc5 = DecoderLayer(c3, 4, 384, drop_rate, pos_factor=2)
         self.pool = nn.AvgPool1d(2)
-        self.upsample = nn.Upsample(2)
+        self.upsample = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
+        self.channel_adj = nn.Conv1d(c2*2, 256, kernel_size=1)
+        self.channel_adj2 = nn.Conv1d(500, 256, kernel_size=1)
 
         self.skip_conv1 = nn.Conv1d(c2, c2, kernel_size=3, padding=get_same_padding(3))
         self.skip_conv2 = nn.Conv1d(c3, c3, kernel_size=3, padding=get_same_padding(3))
         self.skip_conv3 = nn.Conv1d(c2*2, c2*2, kernel_size=3, padding=get_same_padding(3))
 
         self.text_style_encoder = Text_Style_Encoder(c2*2, c2*4)
-        self.att_fc = nn.Linear(c2*2, c2*2)
+        self.att_fc = nn.Linear(c3 // 2, c2*2) # stupid tensorflow taking stupid variable input dims 
         self.att_layers = [DecoderLayer(c2*2, 6, c2*2, drop_rate) for _ in range(num_layers)] # i forsee an issue here
 
         self.dec3 = ConvSubLayer(c3, c3, [1,2])
@@ -306,6 +308,9 @@ class DiffusionWriter(nn.Module):
 
         self.output_fc = nn.Linear(2, 2)
         self.pen_lifts_fc = nn.Sequential(nn.Linear(1, 1), nn.Sigmoid())
+
+        self.proj1 = nn.Linear(96, 384)
+        self.proj2 = nn.Linear(96, 384)
 
     def forward(self, strokes, text, sigma, style_vector):
         sigma = self.sigma_mlp(sigma)
@@ -322,19 +327,32 @@ class DiffusionWriter(nn.Module):
 
         h3 = self.enc4(h3, sigma)
         h3, _ = self.enc5(h3, text, sigma, text_mask)
-        x = self.pool(h3)
+        x = self.pool(h3).repeat(1, 1, 3).transpose(1, 2) # hacky solution to multiply the last dim by 3 so it 'fits'? do it one layer above?
+        x = self.proj1(x) # projecting the other dimension up as well
         
-        x = self.att_fc(x)
         for att_layer in self.att_layers:
             x, att = att_layer(x, text, sigma, text_mask)
-
-        x = self.upsample(x) + self.skip_conv3(h3)
+        
+        # x = self.upsample(x) # removed upsampling because the dims fit already???
+        # ok i see now - upsample is because the h-series are 500, etc, etc
+        print(h3.shape)
+        x = self.channel_adj(x).transpose(1, 2)
+        h3 = self.proj2(h3.transpose(1, 2)).transpose(1, 2)
+        x = x + self.skip_conv3(h3)
         x = self.dec3(x, sigma)
 
-        x = self.upsample(x) + self.skip_conv2(h2)
+        print(x.shape)
+        print(h2.shape)
+        print(h1.shape)
+
+        h2 = self.channel_adj2(h2)
+        print(h2.shape)
+        x = x + self.skip_conv2(h2)
         x = self.dec2(x, sigma)
 
-        x = self.upsample(x) + self.skip_conv1(h1)
+        print(x.shape)
+
+        x = x + self.skip_conv1(h1)
         x = self.dec1(x, sigma)
         
         output = self.output_fc(x)
