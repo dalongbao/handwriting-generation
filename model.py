@@ -46,6 +46,8 @@ def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     abar: weighting factor for pen lift loss
     bce: boolean to decide to use binary cross-entropy
     """
+    print(eps.shape)
+    print(score_pred.shape)
     score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=1))
     pl_loss = torch.mean(bce(pl_pred, pl) * abar.squeeze(-1))
     return score_loss + pl_loss
@@ -354,6 +356,6 @@ class DiffusionWriter(nn.Module):
         x = x + self.skip_conv1(h1)
         x = self.dec1(x, sigma)
         
-        output = self.output_fc(x)
+        output = self.output_fc(x) # because of the hacky together upsampling the stupid thing outputs as 128 when there's 1000 classification channels, change this
         pl = self.pen_lifts_fc(x)
         return output, pl, att
