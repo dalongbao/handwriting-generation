@@ -289,18 +289,18 @@ class DiffusionWriter(nn.Module):
         self.enc1 = ConvSubLayer(c1, c1, [1, 2])
         self.enc2 = ConvSubLayer(c2, c1, [1, 2])
         self.enc3 = DecoderLayer(c2, 3, 384, drop_rate, pos_factor=4) # 384 for text_channels
-        self.enc4 = ConvSubLayer(c3, 500, [1, 2]) # 500 channel size is slapped on to make it work i'm bastardizing the model
+        self.enc4 = ConvSubLayer(c3, c2, [1, 2]) # 500 channel size is slapped on to make it work i'm bastardizing the model
         self.enc5 = DecoderLayer(c3, 4, 384, drop_rate, pos_factor=2)
 
         self.pool = nn.AvgPool1d(2)
         self.upsample = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
 
-        self.skip_conv1 = nn.Conv1d(c2, c2, kernel_size=3, padding=get_same_padding(3))
-        self.skip_conv2 = nn.Conv1d(c3, c3, kernel_size=3, padding=get_same_padding(3))
-        self.skip_conv3 = nn.Conv1d(96, c2*2, kernel_size=3, padding=get_same_padding(3))
+        self.skip_conv1 = nn.Conv1d(1000, c2, kernel_size=3, padding=get_same_padding(3))
+        self.skip_conv2 = nn.Conv1d(500, c3, kernel_size=3, padding=get_same_padding(3))
+        self.skip_conv3 = nn.Conv1d(256, c2*2, kernel_size=3, padding=get_same_padding(3))
 
         self.text_style_encoder = Text_Style_Encoder(c2*2, c2*4) 
-        self.att_fc = nn.Linear(c2*2, c2*2) # stupid tensorflow taking stupid variable input dims 
+        self.att_fc = nn.Linear(c3 // 2, c2*2) # stupid tensorflow taking stupid variable input dims 
         self.att_layers = [DecoderLayer(c2*2, 6, c2*2, drop_rate) for _ in range(num_layers)]
 
         self.dec3 = ConvSubLayer(c3, c3, [1,2])
@@ -309,7 +309,7 @@ class DiffusionWriter(nn.Module):
 
         self.output_fc = nn.Linear(192, 2)
         self.pen_lifts_fc = nn.Sequential(nn.Linear(192, 1), nn.Sigmoid())
-        self.conv = nn.Conv1d(c
+        self.conv = nn.Conv1d(250, 384, 1)
 
     def forward(self, strokes, text, sigma, style_vector):
         sigma = self.sigma_mlp(sigma)
@@ -318,34 +318,32 @@ class DiffusionWriter(nn.Module):
 
         x = self.input_fc(strokes)
         h1 = self.enc1(x, sigma) # (32, 128, 1000)
-        h2 = self.pool(h1).transpose(1, 2) # (32, 500, 128)
+        h2 = self.pool(h1) # (32, 128, 500)
 
-        h2 = self.enc2(h2, sigma) # (32, 192, 500)
+        h2 = self.enc2(h2.transpose(1, 2), sigma) # (32, 192, 500)
         h2, _ = self.enc3(h2, text, sigma, text_mask) # (32, 500, 192)
-        h3 = self.pool(h2).transpose(1, 2) # (32, 96, 500)
+#        h3 = self.pool(h2).transpose(1, 2) # (32, 96, 500)
+        h3 = self.pool(h2.transpose(1, 2)) # (32, 192, 250)
 
-        h3 = self.enc4(h3, sigma) # first error, expected (32, 256, n) but got (32, 500, 96)
-        h3, _ = self.enc5(h3, text, sigma, text_mask) # (32, 96, 256)
-        x = self.pool(h3) # (32, 96, 128)
+        h3 = self.enc4(h3.transpose(1, 2), sigma) # (32, 256, 250)
+        h3, _ = self.enc5(h3, text, sigma, text_mask) # (32, 250, 256)
+        x = self.pool(h3) # (32, 250, 128)
 
-
-        x = x.repeat(1, 1, 3).transpose(1, 2) # hacky solution to multiply the last dim by 3 so it 'fits'? do it one layer above? (32, 384, 96)
-        x = self.proj1(x) # projecting the other dimension up as well (32, 384, 384) 
+        x = self.conv(x) # (32, 384, 128)
         x = self.att_fc(x) # (32, 384, 384)
 
         for att_layer in self.att_layers:
             x, att = att_layer(x, text, sigma, text_mask)
+        # (32, 384, 384)
         
         # x = self.upsample(x) # removed upsampling because the dims fit already???
         # ok i see now - upsample is because the h-series are 256, 500, 1000 etc, etc (why not powers of 2?) (fix that)
         # what's not supposed to be here: the projections (h{n} lines) 
         # the channel adjustments i'm not really sure, maybe they can fit in
-        # the role of the proj is to change the (32, 96, 256) to (32, 384, 256)
+        # remember torch conv is BCL (batch, channels, length) and tf is (batch, length, channels)
 
-        print(x.shape)
-        x = self.upsample(x.transpose(1, 2)).transpose(1, 2)
-        print(x.shape)
-        h3_skipped = self.skip_conv3(h3) 
+        x = self.upsample(x.transpose(1, 2)).transpose(1, 2) # 32, 768, 384
+        h3_skipped = self.skip_conv3(h3.transpose(1, 2)).transpose(1, 2)
         print(h3_skipped.shape)
         x += h3_skipped
         x = self.dec3(x, sigma)
