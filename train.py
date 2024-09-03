@@ -20,6 +20,7 @@ import model as miku # the naming scheme clashes with the torch naming scheme
 def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, optimizer):
     device = next(model.parameters()).device
     strokes = strokes.to(device)
+    print(strokes.shape, 'strokes')
     pen_lifts = pen_lifts.to(device)
     text = text.to(device)
     style_vectors = style_vectors.to(device)

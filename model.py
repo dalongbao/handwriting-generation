@@ -307,11 +307,12 @@ class DiffusionWriter(nn.Module):
         self.dec2 = ConvSubLayer(c2, c3, [1,1])
         self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
-        self.output_fc = nn.Linear(1000, 2)
+        self.output_fc = nn.Linear(128, 2)
         self.pen_lifts_fc = nn.Sequential(nn.Linear(1000, 1), nn.Sigmoid())
         self.conv = nn.Conv1d(250, 384, 1)
 
     def forward(self, strokes, text, sigma, style_vector):
+        # sigma is 32, 1, 1
         sigma = self.sigma_mlp(sigma)
         text_mask = create_padding_mask(text)
         text = self.text_style_encoder(text, style_vector, sigma)
@@ -345,9 +346,7 @@ class DiffusionWriter(nn.Module):
 
         x = self.upsample(x) + self.skip_conv1(h1) # (32, 192, 1000) + (32, 192, 1000) -> (32, 192, 1000)
         x = self.dec1(x.transpose(1, 2), sigma) # (32, 128, 1000)
-        print(x.shape)
 
-        output = self.output_fc(x) 
-        print(output.shape)
-        pl = self.pen_lifts_fc(x)
+        output = self.output_fc(x.transpose(1, 2)) # (32, 1000, 2)
+        pl = self.pen_lifts_fc(x) # (32, 128, 1)
         return output, pl, att
