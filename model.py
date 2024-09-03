@@ -307,8 +307,8 @@ class DiffusionWriter(nn.Module):
         self.dec2 = ConvSubLayer(c2, c3, [1,1])
         self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
-        self.output_fc = nn.Linear(192, 2)
-        self.pen_lifts_fc = nn.Sequential(nn.Linear(192, 1), nn.Sigmoid())
+        self.output_fc = nn.Linear(1000, 2)
+        self.pen_lifts_fc = nn.Sequential(nn.Linear(1000, 1), nn.Sigmoid())
         self.conv = nn.Conv1d(250, 384, 1)
 
     def forward(self, strokes, text, sigma, style_vector):
@@ -346,6 +346,6 @@ class DiffusionWriter(nn.Module):
         x = self.upsample(x) + self.skip_conv1(h1) # (32, 192, 1000) + (32, 192, 1000) -> (32, 192, 1000)
         x = self.dec1(x.transpose(1, 2), sigma) # (32, 128, 1000)
 
-        output = self.output_fc(x) # because of the hacky together upsampling the stupid thing outputs as 128 when there's 1000 classification channels, change this
+        output = self.output_fc(x) 
         pl = self.pen_lifts_fc(x)
         return output, pl, att
