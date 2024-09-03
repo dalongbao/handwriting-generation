@@ -342,16 +342,21 @@ class DiffusionWriter(nn.Module):
         # the channel adjustments i'm not really sure, maybe they can fit in
         # remember torch conv is BCL (batch, channels, length) and tf is (batch, length, channels)
 
-        x = self.upsample(x.transpose(1, 2)).transpose(1, 2) # 32, 768, 384
+        x = self.upsample(x.transpose(1, 2)).transpose(1, 2)
+        print(x.shape)
         h3_skipped = self.skip_conv3(h3.transpose(1, 2)).transpose(1, 2)
         print(h3_skipped.shape)
-        x += h3_skipped
+        x = torch.cat((x, h3_skipped), dim=1)  # Concatenate along the channel dimension
         x = self.dec3(x, sigma)
 
-        x = self.upsample(x.transpose(1, 2)).transpose(1, 2) + self.skip_conv2(h2)
+        x = self.upsample(x.transpose(1, 2)).transpose(1, 2)
+        h2_skipped = self.skip_conv2(h2.transpose(1, 2)).transpose(1, 2)
+        x = torch.cat((x, h2_skipped), dim=1)  # Concatenate along the channel dimension
         x = self.dec2(x, sigma)
 
-        x = self.upsample(x.transpose(1, 2)).transpose(1, 2) + self.skip_conv1(h1)
+        x = self.upsample(x.transpose(1, 2)).transpose(1, 2)
+        h1_skipped = self.skip_conv1(h1.transpose(1, 2)).transpose(1, 2)
+        x = torch.cat((x, h1_skipped), dim=1)  # Concatenate along the channel dimension
         x = self.dec1(x, sigma)
 
         output = self.output_fc(x) # because of the hacky together upsampling the stupid thing outputs as 128 when there's 1000 classification channels, change this
