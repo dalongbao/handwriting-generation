@@ -4,7 +4,13 @@
 3. lora 
 
 * GAN is the best method based on the training data and the data to be LoRA'd
+* WRONG
 * Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
+
+
+notes:
+* the score_prediction is wrong right now, outputs 128 instead of 1000
+* the issue is because of how tf and torch handles dimensions differently
 
 i'm stupid i forgot the text embeddings entirely
 
