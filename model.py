@@ -345,7 +345,9 @@ class DiffusionWriter(nn.Module):
 
         x = self.upsample(x) + self.skip_conv1(h1) # (32, 192, 1000) + (32, 192, 1000) -> (32, 192, 1000)
         x = self.dec1(x.transpose(1, 2), sigma) # (32, 128, 1000)
+        print(x.shape)
 
         output = self.output_fc(x) 
+        print(output.shape)
         pl = self.pen_lifts_fc(x)
         return output, pl, att
