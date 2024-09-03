@@ -322,19 +322,18 @@ class DiffusionWriter(nn.Module):
 
         h2 = self.enc2(h2.transpose(1, 2), sigma) # (32, 192, 500)
         h2, _ = self.enc3(h2, text, sigma, text_mask) # (32, 500, 192)
-#        h3 = self.pool(h2).transpose(1, 2) # (32, 96, 500)
         h3 = self.pool(h2.transpose(1, 2)) # (32, 192, 250)
 
         h3 = self.enc4(h3.transpose(1, 2), sigma) # (32, 256, 250)
         h3, _ = self.enc5(h3, text, sigma, text_mask) # (32, 250, 256)
         x = self.pool(h3) # (32, 250, 128)
 
-        x = self.conv(x) # (32, 384, 128)
-        x = self.att_fc(x) # (32, 384, 384)
+        x = self.att_fc(x).transpose(1, 2) # (32, 384, 250)
 
         for att_layer in self.att_layers:
             x, att = att_layer(x, text, sigma, text_mask)
-        # (32, 384, 384)
+            x = x.transpose(1, 2)
+        # (32, 384, 250)
         
         # x = self.upsample(x) # removed upsampling because the dims fit already???
         # ok i see now - upsample is because the h-series are 256, 500, 1000 etc, etc (why not powers of 2?) (fix that)
@@ -342,9 +341,8 @@ class DiffusionWriter(nn.Module):
         # the channel adjustments i'm not really sure, maybe they can fit in
         # remember torch conv is BCL (batch, channels, length) and tf is (batch, length, channels)
 
-        x = self.upsample(x.transpose(1, 2)).transpose(1, 2)
-        print(x.shape)
-        h3_skipped = self.skip_conv3(h3.transpose(1, 2)).transpose(1, 2)
+        x = self.upsample(x) # (32, 384, 500)
+        h3_skipped = self.skip_conv3(h3.transpose(1, 2)).transpose(1, 2) # (32, 384, 250)
         print(h3_skipped.shape)
         x = torch.cat((x, h3_skipped), dim=1)  # Concatenate along the channel dimension
         x = self.dec3(x, sigma)
