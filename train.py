@@ -37,7 +37,7 @@ def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, o
 
     return loss, score, att
 
-def train(train_loader, model, iterations, optimizer, scheduler, alpha_set, print_every=1000, save_every=10000, device='mps'):
+def train(train_loader, model, iterations, optimizer, scheduler, alpha_set, print_every=500, save_every=10000, device='mps'):
     s = time.time() # maybe use perf counter?
     bce = nn.BCELoss(reduction='none')
     train_loss = miku.AverageMeter()

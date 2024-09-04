@@ -32,9 +32,9 @@ class IAMDataset(Dataset):
     def __getitem__(self, idx):
         strokes, text, image = self.data[idx]
         
-        strokes = torch.Tensor(strokes)
-        text = torch.Tensor(text)
-        image = torch.Tensor(image).permute(2, 0, 1)  # Change from (H, W, C) to (C, H, W)
+        strokes = torch.Tensor(strokes).to(dtype=torch.float32)
+        text = torch.Tensor(text).to(dtype=torch.int64)
+        image = torch.Tensor(image).permute(2, 0, 1).to(dtype=torch.uint8)  # Change from (H, W, C) to (C, H, W)
         
         return strokes, text, image
 

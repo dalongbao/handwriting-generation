@@ -7,6 +7,8 @@
 * WRONG
 * Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
 
+* update preprocessing, return dense cpu tensors
+
 notes:
 * line 258 mha is the first nan line and it propagates downstream
 * gonna kms
