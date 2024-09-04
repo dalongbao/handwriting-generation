@@ -25,7 +25,6 @@ def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, o
     style_vectors = style_vectors.to(device)
 
     alphas = utils.get_alphas(len(strokes), alpha_set)  # alpha_set is (60), alphas is (32, 1)
-#    len(strokes) is 32 
     alphas = alphas.view(-1, 1, 1)
     eps = torch.randn_like(strokes)
     x_perturbed = torch.sqrt(alphas) * strokes + torch.sqrt(1 - alphas) * eps
@@ -38,7 +37,7 @@ def train_step(strokes, pen_lifts, text, style_vectors, model, alpha_set, bce, o
 
     return loss, score, att
 
-def train(train_loader, model, iterations, optimizer, alpha_set, print_every=1000, save_every=10000, device='mps'):
+def train(train_loader, model, iterations, optimizer, scheduler, alpha_set, print_every=1000, save_every=10000, device='mps'):
     s = time.time() # maybe use perf counter?
     bce = nn.BCELoss(reduction='none')
     train_loss = miku.AverageMeter()
@@ -58,6 +57,7 @@ def train(train_loader, model, iterations, optimizer, alpha_set, print_every=100
         
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         train_loss.update(loss.item())
 
@@ -114,14 +114,15 @@ def main():
 
     style_extractor = miku.StyleExtractor()
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
-    optimizer = optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.98), eps=1e-9)
+    scheduler = miku.InvSqrtScheduler(optimizer, C3)
 
     strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
     train_loader = utils.build_dataset(strokes, text, samples, style_extractor, BATCH_SIZE, device)
     print(f'using device {device}')
     print('starting training...')
 
-    train(train_loader, model, NUM_STEPS, optimizer, alpha_set, PRINT_EVERY, SAVE_EVERY, device)
+    train(train_loader, model, NUM_STEPS, optimizer, scheduler, alpha_set, PRINT_EVERY, SAVE_EVERY, device)
 
 if __name__ == '__main__':
     main()

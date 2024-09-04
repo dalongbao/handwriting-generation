@@ -8,9 +8,9 @@
 * Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
 
 notes:
-* the score_prediction is wrong right now, outputs 128 instead of 1000
-* the issue is because of how tf and torch handles dimensions differently
-* i'm convinced that the error lies in the fifty transposes i'm doing in the encoding layers
+* line 258 mha is the first nan line and it propagates downstream
+* gonna kms
+* FOUND THE ISSUE IT'S EXPLODING GRADIENT
 
 i'm stupid i forgot the text embeddings entirely
 
