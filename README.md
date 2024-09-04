@@ -4,5 +4,6 @@
 
 ## Implementation
 * Architecture: https://arxiv.org/pdf/2011.06704
-* Dataset: [dataset](https://fki.tic.heia-fr.ch/databases/download-the-iam-on-line-handwriting-database)
+* Dataset: [IAM On-Line Handwriting Database](https://fki.tic.heia-fr.ch/databases/download-the-iam-on-line-handwriting-database)
 
+LoRA code and dataset coming later, let me cook.
