@@ -35,7 +35,7 @@ def get_same_padding(kernel_size):
         return [(k - 1) // 2 for k in kernel_size]
 
 def reshape_up(x, factor=2):
-    return x.view(x.shape[0], x.shape[1]*factor, x.shape[2]//factor)
+    return x.reshape(x.shape[0], x.shape[1]*factor, x.shape[2]//factor)
 
 def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     """

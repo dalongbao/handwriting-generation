@@ -1,4 +1,11 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+from torch.optim.lr_scheduler import _LRScheduler
 import os
 import tiktoken
 import argparse
@@ -8,6 +15,33 @@ import matplotlib.pyplot as plt
 import utils
 import model as miku
 import preprocessing
+
+class StyleExtractor(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT).to(self.device)
+        self.features = nn.Sequential(*list(self.mobilenet.features)).to(self.device)
+
+        self.local_pool = nn.AvgPool2d((3, 3)).to(self.device)
+        self.freeze_all_layers()
+
+    def freeze_all_layers(self):
+        for param in self.mobilenet.parameters():
+            param.requires_grad = False
+
+    def forward(self, im, im2=None, get_similarity=False, training=False):
+        x = im.float() / 127.5 - 1
+        x = x.to(self.device) 
+        x = x.repeat(1, 3, 1, 1) # shape is (batch, no. strokes?, img, channels)
+        # x = x.permute(0, 3, 1, 2) # shape is (batch, channels, no. strokes?, img) (necessary for pytorch mobilenet dims btw)
+        x = self.features(x) # mobilenet features output is (batch_size, 1280, height/32, width/32) where 1280 is output channels
+        x = self.local_pool(x)
+
+        # reshaping to fit the reshaping dims - now it's (batch_size, flattened sequence, channels)
+        batch, channels, h, w = x.shape
+        x = x.reshape(batch, channels, h*w).transpose(1, 2)
+        return x
 
 def main():
     parser = argparse.ArgumentParser()  
@@ -27,9 +61,9 @@ def main():
                                                  this if loaded model was trained with that hyperparameter', default=128, type=int)
 
     args = parser.parse_args()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
     timesteps = len(args.textstring) * 16 if args.seqlen is None else args.seqlen
-    timesteps = timesteps - (timesteps%8) + 8 
-    #must be divisible by 8 due to downsampling layers
+    timesteps = timesteps - (timesteps%8) + 8 #must be divisible by 8 due to downsampling layers
 
     if args.writersource is None:
         assetdir = os.listdir('./assets')
@@ -39,27 +73,24 @@ def main():
 
     L = 60
     tokenizer = tiktoken.get_encoding('cl100k_base') # using tiktoken instead of their default tokenizer
-    beta_set = utils.get_beta_set()
-    alpha_set = torch.cumprod(1-beta_set, dim=0)
+    beta_set = utils.get_beta_set().to(device)
+    alpha_set = torch.cumprod(1-beta_set, dim=0).to(device)
 
     C1 = args.channels
     C2 = C1 * 3//2
     C3 = C1 * 2
-    style_extractor = miku.StyleExtractor()
-    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3)
+    style_extractor = StyleExtractor(device)
+    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3).to(device)
     
     # Load the trained model weights
-    model.load_state_dict(torch.load(args.weights))
+    model.load_state_dict(torch.load(args.weights, map_location=device))
     model.eval()
 
-    writer_img = preprocessing.read_img(sourcename, 96).unsqueeze(0)
-    print(writer_img.shape)
+    writer_img = preprocessing.read_img(sourcename, 96).unsqueeze(0).to(device)
     style_vector = style_extractor(writer_img)
     utils.run_batch_inference(model, beta_set, args.textstring, style_vector, 
                                 tokenizer=tokenizer, time_steps=timesteps, diffusion_mode=args.diffmode, 
-                                show_samples=args.show, path=args.name)
+                                show_samples=args.show, path=args.name, device=device)
 
 if __name__ == '__main__':
     main()
-
-
