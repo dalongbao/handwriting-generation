@@ -46,10 +46,14 @@ def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     abar: weighting factor for pen lift loss
     bce: boolean to decide to use binary cross-entropy
     """
-    print(eps.shape) # eps.shape [32, 1000, 2]
-    print(score_pred.shape) # score_pred.shape([32, 128, 2])
-    score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=1))
-    pl_loss = torch.mean(bce(pl_pred, pl) * abar.squeeze(-1))
+    score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=-1)) # no shape?
+    # abar is currently (32, 1, 1)
+    print(np.max(pl_pred, axis=1))
+    bce_res = bce(pl_pred, pl) # (32, 1000, 1)
+    abs = abar.squeeze(-1) # (32, 1)
+    bce_res = bce_res.squeeze(-1) # (32, 1000)
+    abs = abs.view(-1, 1) # (32, 1)
+    pl_loss = torch.mean(bce_res * abs)
     return score_loss + pl_loss
 
 class AverageMeter:
@@ -308,7 +312,7 @@ class DiffusionWriter(nn.Module):
         self.dec1 = ConvSubLayer(c1, c2, [1,1])
 
         self.output_fc = nn.Linear(128, 2)
-        self.pen_lifts_fc = nn.Sequential(nn.Linear(1000, 1), nn.Sigmoid())
+        self.pen_lifts_fc = nn.Sequential(nn.Linear(128, 1), nn.Sigmoid())
         self.conv = nn.Conv1d(250, 384, 1)
 
     def forward(self, strokes, text, sigma, style_vector):
@@ -348,5 +352,5 @@ class DiffusionWriter(nn.Module):
         x = self.dec1(x.transpose(1, 2), sigma) # (32, 128, 1000)
 
         output = self.output_fc(x.transpose(1, 2)) # (32, 1000, 2)
-        pl = self.pen_lifts_fc(x) # (32, 128, 1)
+        pl = self.pen_lifts_fc(x.transpose(1, 2)) # (32, 1000, 1)
         return output, pl, att
