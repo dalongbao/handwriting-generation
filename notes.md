@@ -16,6 +16,9 @@ i'm stupid i forgot the text embeddings entirely
 
 i'm stupid i forgot to use the style extractor entirely so the entire time the i was sending in unencoded vectors of the wrong size. well well well.
 
+4/9 log
+* after fixing all the hacks (they didn't work, had to make the original work anyway) and all the random bugs introduced i am done with part 1.
+
 7/8 log
 * i have completely bastardized the model - downsampled instead of upsample, adjusted a bunch of random stuff, etc etc
 * may have ruined the architecture

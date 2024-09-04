@@ -26,9 +26,7 @@ def get_alphas(batch_size, alpha_set):
     return alphas
 
 def explin(min_val, max_val, L):
-    return torch.exp(torch.linspace(torch.log(torch.tensor(min_val)), 
-                                    torch.log(torch.tensor(max_val)), 
-                                    L))
+    return torch.exp(torch.linspace(torch.log(torch.tensor(min_val)), torch.log(torch.tensor(max_val)), L))
 
 def get_beta_set():
     beta_set = 0.02 + explin(1e-5, 0.4, 60)
