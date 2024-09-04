@@ -46,9 +46,9 @@ def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     abar: weighting factor for pen lift loss
     bce: boolean to decide to use binary cross-entropy
     """
-    score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=-1)) # no shape?
+    score_loss = torch.mean(torch.sum(torch.square(eps - score_pred), dim=-1)) # ()
     # abar is currently (32, 1, 1)
-    print(np.max(pl_pred, axis=1))
+    print("pl_pred max value:", torch.max(pl_pred))
     bce_res = bce(pl_pred, pl) # (32, 1000, 1)
     abs = abar.squeeze(-1) # (32, 1)
     bce_res = bce_res.squeeze(-1) # (32, 1000)
@@ -236,6 +236,8 @@ class DecoderLayer(nn.Module):
 
         x = x.transpose(1, 2)
         x_pe = x + self.stroke_pe(x)
+        print("aklsjdfhaklsdjhf------------------------------------------------------------")
+        print(x.shape)
 
         text_mask = ~text_mask.squeeze(1).squeeze(1).bool() # shape (32, 50)
         x_pe = x_pe.transpose(0, 1)  # Shape: [500, 32, 192]
@@ -246,14 +248,20 @@ class DecoderLayer(nn.Module):
         x2 = x2.transpose(0, 1)
         x2 = self.layernorm(self.dropout(x2))
         x2 = self.affine1(x2, sigma) + x
+        print("------------------------------------------------------------")
+        print(x2.shape)
 
         x2_pe = x2 + self.stroke_pe(x2) # update this here too
         x3, _ = self.mha2(x2_pe, x2_pe, x2)
         x3 = self.layernorm(x2 + self.dropout(x3))
         x3 = self.affine2(x3, sigma)
+        print("------------------------------------------------------------")
+        print(x3.shape)
 
         x4 = self.ff(x3)
         x4 = self.dropout(x4) + x3
+        print("aklcjhfaskldjfh------------------------------------------------------------")
+        print(x4.shape)
         out = self.affine3(self.layernorm(x4), sigma)
         return out, att
 
@@ -328,6 +336,14 @@ class DiffusionWriter(nn.Module):
         h2 = self.enc2(h2.transpose(1, 2), sigma) # (32, 192, 500)
         h2, _ = self.enc3(h2, text, sigma, text_mask) # (32, 500, 192)
         h3 = self.pool(h2.transpose(1, 2)) # (32, 192, 250)
+        print(text)
+        print("------------------------------------------------------------")
+        print(sigma)
+        print("------------------------------------------------------------")
+        print(text_mask)
+        print("------------------------------------------------------------")
+        print(h2)
+        print("------------------------------------------------------------")
 
         h3 = self.enc4(h3.transpose(1, 2), sigma) # (32, 256, 250)
         h3, _ = self.enc5(h3, text, sigma, text_mask) # (32, 250, 256)
