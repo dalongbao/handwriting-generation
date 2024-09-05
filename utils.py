@@ -32,6 +32,24 @@ def get_beta_set():
     beta_set = 0.02 + explin(1e-5, 0.4, 60)
     return beta_set
 
+def show(strokes, name='', show_output=True, scale=1):
+    positions = torch.cumsum(strokes, axis=0).T[:2]
+    prev_ind = 0
+    W, H = torch.max(positions, axis=-1)[0] - torch.min(positions, axis=-1)[0]
+    W = W.detach().numpy()
+    H = H.detach().numpy()
+    plt.figure(figsize=(scale * W/H, scale))
+
+    for ind, value in enumerate(strokes[:, 2]):
+        if value > 0.5: 
+            plt.plot(positions[0][prev_ind:ind], positions[1][prev_ind:ind], color='black')
+            prev_ind = ind
+        
+    plt.axis('off')
+    if name: plt.savefig('./' + name + '.png', bbox_inches='tight')
+    if show_output:  plt.show()
+    else: plt.close()
+
 def pad_stroke_seq(x, maxlength):
     if (x.shape[0] > maxlength) or (torch.max(torch.abs(x)) > 15):
         return None
@@ -83,7 +101,7 @@ def standard_diffusion_step(xt, eps, beta, alpha, add_sigma=True):
 
 def new_diffusion_step(xt, eps, beta, alpha, alpha_next):
     x_t_minus1 = (xt - torch.sqrt(1 - alpha) * eps) / torch.sqrt(1 - beta)
-    x_t_minus1 += torch.randn_like(xt) * torch.sqrt(1 - alpha_next)
+    x_t_minus1 += torch.randn_like(xt) * torch.sqrt(torch.tensor(1 - alpha_next, device=xt.device))
     return x_t_minus1
 
 def run_batch_inference(model, beta_set, text, style, tokenizer=None, time_steps=480, diffusion_mode='new', show_every=None, show_samples=True, path=None, device='mps'):
@@ -96,7 +114,7 @@ def run_batch_inference(model, beta_set, text, style, tokenizer=None, time_steps
         text = torch.tensor(tmp).to(device)
 
     bs = text.shape[0]
-    L = len(beta_set)
+    L = 1#len(beta_set)
     alpha_set = torch.cumprod(1 - beta_set, dim=0).to(device)
     x = torch.randn([bs, time_steps, 2]).to(device)
     
@@ -107,6 +125,7 @@ def run_batch_inference(model, beta_set, text, style, tokenizer=None, time_steps
         alpha = alpha_set[i].view(1, 1, 1).expand(bs, 1, 1)
         beta = beta_set[i].view(1, 1, 1).expand(bs, 1, 1)
         a_next = alpha_set[i-1] if i > 1 else 1.
+        # model outputs are nan, propagates
         model_out, pen_lifts, att = model(x, text, torch.sqrt(alpha), style)
         if diffusion_mode == 'standard':
             x = standard_diffusion_step(x, model_out, beta, alpha, add_sigma=bool(i)) 

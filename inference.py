@@ -33,7 +33,7 @@ class StyleExtractor(nn.Module):
             param.requires_grad = False
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
-        x = im.float() / 127.5 - 1
+        x = im.float() / 127.5 - 1 # normalizing 
         x = x.to(self.device) # (batch, heights, width)
         x = x.repeat(1, 3, 1, 1) # shape is (batch, channels, height, width)
         # x = x.permute(0, 3, 1, 2) # shape is (batch, channels, height, width) (necessary for pytorch mobilenet dims btw)
@@ -62,7 +62,7 @@ def main():
                                                  this if loaded model was trained with that hyperparameter', default=128, type=int)
 
     args = parser.parse_args()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     timesteps = len(args.textstring) * 16 if args.seqlen is None else args.seqlen
     timesteps = timesteps - (timesteps%8) + 8 
     #must be divisible by 8 due to downsampling layers
@@ -89,7 +89,6 @@ def main():
     model.eval()
 
     writer_img = preprocessing.read_img(sourcename, 96).unsqueeze(0).to(device) # AFAIK read_img is right, but is the unsqueeze supposed to replciate the batch dimension?
-    print(writer_img.shape)
     style_vector = style_extractor(writer_img)
     utils.run_batch_inference(model, beta_set, args.textstring, style_vector, 
                                 tokenizer=tokenizer, time_steps=timesteps, diffusion_mode=args.diffmode, 

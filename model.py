@@ -236,6 +236,7 @@ class DecoderLayer(nn.Module):
 
         x = x.transpose(1, 2)
         x_pe = x + self.stroke_pe(x)
+        print('-----------------------------------')
 
         text_mask = ~text_mask.squeeze(1).squeeze(1).bool() # shape (32, 50)
         x_pe = x_pe.transpose(0, 1)  # Shape: [500, 32, 192]

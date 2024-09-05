@@ -8,7 +8,7 @@
 * Probably will have to do some preprocessing of the data, sizes vary a lot and some fonts i don't really want?
 
 * dense tensors stil do the pin memory issue
-* write inference code from scratch; look at preprocessing and what's been done to the images before they were used to make the dataset; model shenanigans
+* something happening in propagation of x in decodersublayer
 
 notes:
 * line 258 mha is the first nan line and it propagates downstream
