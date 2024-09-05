@@ -75,6 +75,9 @@ def pad_img(img, width, height):
     return padded_img[:, :, :3]
 
 
+
+
+
 def preprocess_data(path, max_text_len, max_seq_len, img_width, img_height):
     with open(path, 'rb') as f:
         ds = pickle.load(f)

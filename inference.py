@@ -27,6 +27,7 @@ def main():
                                                  this if loaded model was trained with that hyperparameter', default=128, type=int)
 
     args = parser.parse_args()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
     timesteps = len(args.textstring) * 16 if args.seqlen is None else args.seqlen
     timesteps = timesteps - (timesteps%8) + 8 
     #must be divisible by 8 due to downsampling layers
@@ -39,25 +40,25 @@ def main():
 
     L = 60
     tokenizer = tiktoken.get_encoding('cl100k_base') # using tiktoken instead of their default tokenizer
-    beta_set = utils.get_beta_set()
-    alpha_set = torch.cumprod(1-beta_set, dim=0)
+    beta_set = utils.get_beta_set().to(device)
+    alpha_set = torch.cumprod(1-beta_set, dim=0).to(device)
 
     C1 = args.channels
     C2 = C1 * 3//2
     C3 = C1 * 2
     style_extractor = miku.StyleExtractor()
-    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3)
+    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3.to(device)
     
     # Load the trained model weights
-    model.load_state_dict(torch.load(args.weights))
+    model.load_state_dict(torch.load(args.weights, map_location=device))
     model.eval()
 
-    writer_img = preprocessing.read_img(sourcename, 96).unsqueeze(0)
+    writer_img = preprocessing.read_img(sourcename, 96).unsqueeze(0).to(device) # AFAIK read_img is right, but is the unsqueeze supposed to replciate the batch dimension?
     print(writer_img.shape)
     style_vector = style_extractor(writer_img)
     utils.run_batch_inference(model, beta_set, args.textstring, style_vector, 
                                 tokenizer=tokenizer, time_steps=timesteps, diffusion_mode=args.diffmode, 
-                                show_samples=args.show, path=args.name)
+                                show_samples=args.show, path=args.name, device=device)
 
 if __name__ == '__main__':
     main()
