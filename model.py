@@ -35,7 +35,7 @@ def get_same_padding(kernel_size):
         return [(k - 1) // 2 for k in kernel_size]
 
 def reshape_up(x, factor=2):
-    return x.view(x.shape[0], x.shape[1]*factor, x.shape[2]//factor)
+    return x.reshape(x.shape[0], x.shape[1]*factor, x.shape[2]//factor)
 
 def loss_fn(eps, score_pred, pl, pl_pred, abar, bce):
     """
@@ -199,9 +199,9 @@ class StyleExtractor(nn.Module):
 
     def forward(self, im, im2=None, get_similarity=False, training=False):
         x = im.float() / 127.5 - 1
-        x = x.to(self.device) 
-        x = x.repeat(1, 3, 1, 1) # shape is (batch, no. strokes?, img, channels)
-        x = x.permute(0, 3, 1, 2) # shape is (batch, channels, no. strokes?, img) (necessary for pytorch mobilenet dims btw)
+        x = x.to(self.device) # (batch, heights, width)
+        x = x.repeat(1, 3, 1, 1) # shape is (batch, channels, height, width)
+        x = x.permute(0, 3, 1, 2) # shape is (batch, channels, height, width) (necessary for pytorch mobilenet dims btw)
         x = self.features(x) # mobilenet features output is (batch_size, 1280, height/32, width/32) where 1280 is output channels
         x = self.local_pool(x)
 

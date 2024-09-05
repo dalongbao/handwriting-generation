@@ -1,4 +1,12 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+from torch.optim.lr_scheduler import _LRScheduler
+
 import os
 import tiktoken
 import argparse
@@ -8,6 +16,33 @@ import matplotlib.pyplot as plt
 import utils
 import model as miku
 import preprocessing
+
+# slightly different from the training styleextractor because of how the input images are formatted
+class StyleExtractor(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT).to(self.device)
+        self.features = nn.Sequential(*list(self.mobilenet.features)).to(self.device)
+
+        self.local_pool = nn.AvgPool2d((3, 3))
+        self.freeze_all_layers()
+
+    def freeze_all_layers(self):
+        for param in self.mobilenet.parameters():
+            param.requires_grad = False
+
+    def forward(self, im, im2=None, get_similarity=False, training=False):
+        x = im.float() / 127.5 - 1
+        x = x.to(self.device) # (batch, heights, width)
+        x = x.repeat(1, 3, 1, 1) # shape is (batch, channels, height, width)
+        # x = x.permute(0, 3, 1, 2) # shape is (batch, channels, height, width) (necessary for pytorch mobilenet dims btw)
+        x = self.features(x) # mobilenet features output is (batch_size, 1280, height/32, width/32) where 1280 is output channels x = self.local_pool(x)
+
+        # reshaping to fit the reshaping dims - now it's (batch_size, flattened sequence, channels)
+        batch, channels, h, w = x.shape
+        x = x.reshape(batch, channels, h*w).transpose(1, 2)
+        return x
 
 def main():
     parser = argparse.ArgumentParser()  
@@ -46,10 +81,10 @@ def main():
     C1 = args.channels
     C2 = C1 * 3//2
     C3 = C1 * 2
-    style_extractor = miku.StyleExtractor()
-    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3.to(device)
+    style_extractor = StyleExtractor()
+    model = miku.DiffusionWriter(num_layers=args.num_attlayers, c1=C1, c2=C2, c3=C3).to(device)
     
-    # Load the trained model weights
+    # Load weights
     model.load_state_dict(torch.load(args.weights, map_location=device))
     model.eval()
 
