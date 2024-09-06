@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 from torch.optim.lr_scheduler import _LRScheduler
-
 import os
 import sys
 import pickle
@@ -233,17 +232,20 @@ class DecoderLayer(nn.Module):
         text = self.text_fc(self.silu(text))
         text = self.affine0(self.layernorm(text), sigma)
         text_pe = text + self.text_pe(text) # self.text_pe[:, :text.shape[1]]  # Use square brackets instead of parentheses
+        text_mask = ~text_mask
 
         x = x.transpose(1, 2)
         x_pe = x + self.stroke_pe(x)
-        print('-----------------------------------')
 
         text_mask = ~text_mask.squeeze(1).squeeze(1).bool() # shape (32, 50)
         x_pe = x_pe.transpose(0, 1)  # Shape: [500, 32, 192]
         text_pe = text_pe.transpose(0, 1)  # Shape: [50, 32, 192]
         text = text.transpose(0, 1)  # Shape: [50, 32, 192]
 
-        x2, att = self.mha1(x_pe, text_pe, text, text_mask)
+        print(text_mask)
+        print(text_mask.shape)
+        x2, att = self.mha1(x_pe, text_pe, text, text_mask) # the issue is here? does later MHAs have the same issue?
+        # print('-----------------------------------')
         x2 = x2.transpose(0, 1)
         x2 = self.layernorm(self.dropout(x2))
         x2 = self.affine1(x2, sigma) + x

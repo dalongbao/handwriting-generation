@@ -210,7 +210,7 @@ def build_dataset(strokes, texts, samples, style_extractor, batch_size, device):
         batch_size=batch_size,
         shuffle=True,
         num_workers=0,
-        pin_memory=True, # set to False on Colab because data wasn't made to Dense Tensor and new dataset didn't work 
+        pin_memory=False, # set to False on Colab because data wasn't made to Dense Tensor and new dataset didn't work 
         drop_last=True
     )
     

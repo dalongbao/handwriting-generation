@@ -9,6 +9,7 @@
 
 * dense tensors stil do the pin memory issue
 * something happening in propagation of x in decodersublayer
+* the issue might be with the text mask (why the hell is is (1, 3)) 
 
 notes:
 * line 258 mha is the first nan line and it propagates downstream
