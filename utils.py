@@ -42,7 +42,8 @@ def show(strokes, name='', show_output=True, scale=1):
 
     for ind, value in enumerate(strokes[:, 2]):
         if value > 0.5: 
-            plt.plot(positions[0][prev_ind:ind], positions[1][prev_ind:ind], color='black')
+            show_positions= position.detach().numpy()
+            plt.plot(show_positions[0][prev_ind:ind], show_positions[1][prev_ind:ind], color='black')
             prev_ind = ind
         
     plt.axis('off')
