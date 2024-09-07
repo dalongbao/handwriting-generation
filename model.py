@@ -16,14 +16,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def create_padding_mask(seq, repeats=1):
-    # Create mask where 0 elements are 1 and others are 0
-    seq = (seq == 0).float()
-    
-    # Repeat the mask 'repeats' times along the last dimension
-    seq = seq.repeat_interleave(repeats, dim=-1)
-    
-    # Add two new dimensions at positions 1 and 2
-    mask = seq.unsqueeze(1).unsqueeze(2)
+    print("seq:", seq)
+    mask = (seq != 0).float().unsqueeze(1).unsqueeze(2)
+    # # Create mask where 0 elements are 1 and others are 0
+    # seq = (seq == 0).float()
+    # 
+    # # Repeat the mask 'repeats' times along the last dimension
+    # seq = seq.repeat_interleave(repeats, dim=-1)
+    # 
+    # # Add two new dimensions at positions 1 and 2
+    # mask = seq.unsqueeze(1).unsqueeze(2)
+    print("mask: ", mask)
     
     return mask
 
@@ -228,11 +231,10 @@ class DecoderLayer(nn.Module):
 
         self.silu = nn.SiLU()
 
-    def forward(self, x, text, sigma, text_mask): # may need to invert text mask text_mask = ~text_mask
+    def forward(self, x, text, sigma, text_mask):
         text = self.text_fc(self.silu(text))
         text = self.affine0(self.layernorm(text), sigma)
         text_pe = text + self.text_pe(text) # self.text_pe[:, :text.shape[1]]  # Use square brackets instead of parentheses
-        text_mask = ~text_mask
 
         x = x.transpose(1, 2)
         x_pe = x + self.stroke_pe(x)
@@ -242,8 +244,6 @@ class DecoderLayer(nn.Module):
         text_pe = text_pe.transpose(0, 1)  # Shape: [50, 32, 192]
         text = text.transpose(0, 1)  # Shape: [50, 32, 192]
 
-        print(text_mask)
-        print(text_mask.shape)
         x2, att = self.mha1(x_pe, text_pe, text, text_mask) # the issue is here? does later MHAs have the same issue?
         # print('-----------------------------------')
         x2 = x2.transpose(0, 1)
@@ -329,6 +329,7 @@ class DiffusionWriter(nn.Module):
 
         h2 = self.enc2(h2.transpose(1, 2), sigma) # (32, 192, 500)
         h2, _ = self.enc3(h2, text, sigma, text_mask) # (32, 500, 192)
+        print(h2)
         h3 = self.pool(h2.transpose(1, 2)) # (32, 192, 250)
 
         h3 = self.enc4(h3.transpose(1, 2), sigma) # (32, 256, 250)
