@@ -42,7 +42,7 @@ def show(strokes, name='', show_output=True, scale=1):
 
     for ind, value in enumerate(strokes[:, 2]):
         if value > 0.5: 
-            show_positions= position.detach().numpy()
+            show_positions= positions.detach().numpy()
             plt.plot(show_positions[0][prev_ind:ind], show_positions[1][prev_ind:ind], color='black')
             prev_ind = ind
         
@@ -140,7 +140,7 @@ def run_batch_inference(model, beta_set, text, style, tokenizer=None, time_steps
 
     x = torch.cat([x, pen_lifts], dim=-1)
     for i in range(bs):
-        show(x[i].cpu(), scale=1, show_output=show_samples, name=path)
+        show(x[i].cpu(), scale=1, show_output=True, name=path)
 
     return x.detach().cpu().numpy()
 
