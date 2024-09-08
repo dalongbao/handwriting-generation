@@ -16,7 +16,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def create_padding_mask(seq, repeats=1):
-    print("seq:", seq)
     mask = (seq != 0).float().unsqueeze(1).unsqueeze(2)
     # # Create mask where 0 elements are 1 and others are 0
     # seq = (seq == 0).float()
@@ -26,7 +25,6 @@ def create_padding_mask(seq, repeats=1):
     # 
     # # Add two new dimensions at positions 1 and 2
     # mask = seq.unsqueeze(1).unsqueeze(2)
-    print("mask: ", mask)
     
     return mask
 
@@ -245,7 +243,6 @@ class DecoderLayer(nn.Module):
         text = text.transpose(0, 1)  # Shape: [50, 32, 192]
 
         x2, att = self.mha1(x_pe, text_pe, text, text_mask) # the issue is here? does later MHAs have the same issue?
-        # print('-----------------------------------')
         x2 = x2.transpose(0, 1)
         x2 = self.layernorm(self.dropout(x2))
         x2 = self.affine1(x2, sigma) + x
@@ -329,7 +326,6 @@ class DiffusionWriter(nn.Module):
 
         h2 = self.enc2(h2.transpose(1, 2), sigma) # (32, 192, 500)
         h2, _ = self.enc3(h2, text, sigma, text_mask) # (32, 500, 192)
-        print(h2)
         h3 = self.pool(h2.transpose(1, 2)) # (32, 192, 250)
 
         h3 = self.enc4(h3.transpose(1, 2), sigma) # (32, 256, 250)
