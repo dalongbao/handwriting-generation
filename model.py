@@ -187,7 +187,7 @@ class StyleExtractor(nn.Module):
     def __init__(self):
         super().__init__()
         self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
-        self.features = nn.Sequential(*list(self.mobilenet.features)).to(self.device)
+        self.features = nn.Sequential(*list(self.mobilenet.features))
 
         self.local_pool = nn.AvgPool2d((3, 3))
         self.freeze_all_layers()
