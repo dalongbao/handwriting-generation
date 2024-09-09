@@ -186,8 +186,7 @@ class ConvSubLayer(nn.Module):
 class StyleExtractor(nn.Module):
     def __init__(self):
         super().__init__()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
-        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT).to(self.device)
+        self.mobilenet = mobilenet_v2(weights=MobileNet_V2_Weights.DEFAULT)
         self.features = nn.Sequential(*list(self.mobilenet.features)).to(self.device)
 
         self.local_pool = nn.AvgPool2d((3, 3))

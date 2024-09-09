@@ -112,14 +112,15 @@ def main():
     beta_set = utils.get_beta_set()
     alpha_set = torch.cumprod(1 - beta_set, dim=0)
 
-    style_extractor = miku.StyleExtractor()
+    print(f'using device {device}')
+
+    style_extractor = miku.StyleExtractor().to(device)
     model = miku.DiffusionWriter(num_layers=NUM_ATTLAYERS, c1=C1, c2=C2, c3=C3, drop_rate=DROP_RATE)
     optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.98), eps=1e-9)
     scheduler = miku.InvSqrtScheduler(optimizer, C3)
 
     strokes , text, samples = utils.preprocess_data(path, MAX_TEXT_LEN, MAX_SEQ_LEN, IMG_WIDTH, 96)
     train_loader = utils.build_dataset(strokes, text, samples, style_extractor, BATCH_SIZE, device)
-    print(f'using device {device}')
     print('starting training...')
 
     train(train_loader, model, NUM_STEPS, optimizer, scheduler, alpha_set, PRINT_EVERY, SAVE_EVERY, device)
